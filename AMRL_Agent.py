@@ -6,31 +6,28 @@ class AMRL_Agent:
     '''Creates a AMRL-Agent, as described in https://arxiv.org/abs/2005.12697'''
 
     def __init__(self,env,StateSize,MeasureSize,ActionSize, eta=0.05, s_init = 1, m_bias = 0.1, measureCost=0.01):
+        #load all environment-specific variables
         self.env, self.StateSize, self.MeasureSize, self.ActionSize,self.eta, self.s_init, self.m_bias, self.measureCost = env, StateSize, MeasureSize, ActionSize,eta, s_init, m_bias, measureCost
 
-        # Tables for Algorithm
-        self.QTable = np.zeros( (StateSize,ActionSize,MeasureSize) )
-        self.QTable[:,:,1] = m_bias
-        self.QTriesTable = np.zeros( (StateSize, ActionSize, MeasureSize) )
-        self.TransTable = np.zeros( (StateSize, ActionSize, StateSize) )
-        self.TriesTable = np.zeros( (StateSize, ActionSize, StateSize) )
+        # Create all episode and run-specific variables
+        self.reset_Run_Variables()
 
-        # Variables for one epoch:
-        self.totalReward = 0
-        self.currentReward = 0
-        self.steps_taken = 0
-
-    def reset_Variables(self):
+    def reset_Run_Variables(self):
+        # Variables for one run
         self.QTable = np.zeros( (self.StateSize,self.ActionSize,self.MeasureSize) )
         self.QTable[:,:,1] = self.m_bias
         self.QTriesTable = np.zeros( (self.StateSize, self.ActionSize, self.MeasureSize) )
         self.TransTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
         self.TriesTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
-
-        # Variables for one epoch:
         self.totalReward = 0
+        # Variables for one epoch
+        self.reset_Epoch_Vars()
+
+    def reset_Epoch_Vars(self):
         self.currentReward = 0
         self.steps_taken = 0
+        self.env.reset()
+        self.totalReward += self.currentReward
 
 
     def update_TransTable(self,s1, s2, action):
@@ -55,7 +52,6 @@ class AMRL_Agent:
 
     def guess_current_State(self,s,action):
         return (np.argmax(self.TransTable[s,action]))
-
     def find_optimal_actionPair(self,s):
         '''Returns optimal actionPair according to Q-table'''
         #print(self.QTable[s])
@@ -65,45 +61,41 @@ class AMRL_Agent:
         return  ( np.random.randint(0,self.ActionSize), np.random.randint(0,self.MeasureSize) )
 
 
-    def train(self, nmbr_epochs, printResults = False):
+    def train_epoch(self):
         '''Training algorithm of AMRL as given in paper'''
         s_current = self.s_init
-        prevReward = 0
-
-        while self.steps_taken < nmbr_epochs:
+        done = False
+        while not done:
+            # Chose and take step:
             if np.random.random(1) < 1-self.eta:
                 (action,measure) = self.find_optimal_actionPair(s_current) #Choose optimal action
-                #print("Optimal action:" +str((action, measure)))
             else:
                 (action,measure) = self.find_nonOptimal_actionPair(s_current) #choose non-optimal action
-
             (obs, reward, done, info) = self.env.step(action)
+
+            # Update reward, Q-table and s_next
             if measure:
                 reward -= self.measureCost
-            if measure:
                 self.update_TransTable(s_current,obs,action)
                 s_next = obs
             else:
                 s_next = self.guess_current_State(s_current, action)
-            #print("current vars:" +str( (s_current,action,measure, reward)))
             self.update_QTable(s_current,action,measure,s_next, reward)
             s_current = s_next
-            self.totalReward += reward
-            if done:
-                self.env.reset()
-                s_current = self.s_init
-                if printResults:
-                    print("Completed epoch "+str(self.steps_taken)+": reward = "+str(self.totalReward-prevReward))
-                prevReward = self.totalReward
-                self.steps_taken+=1
-        if printResults:
-            print ("Training completed: total reward = "+str(self.totalReward))
+            self.currentReward += reward
+            self.steps_taken += 1
+        
+        # Reset after epoch, return reward and #steps
+        self.totalReward += self.currentReward
+        (rew, steps) = self.currentReward, self.steps_taken
+        self.reset_Epoch_Vars()
+        return (rew,steps)
 
-    def train_N(self, N, nmbr_epochs):
-        rewardsArray = []
-        for i in range(N):
-            self.train(nmbr_epochs)
-            print("Session {0}: Reward = {1}".format(i+1,self.totalReward))
-            rewardsArray.append(self.totalReward)
-            self.reset_Variables()
-        print("Total results: avg reward = {0}, with std {1}".format(np.mean(rewardsArray), np.std(rewardsArray)))
+    def train_run(self, nmbr_epochs, get_intermediate_results=False):
+        self.reset_Run_Variables()
+        results = np.zeros((nmbr_epochs,2))
+        for i in range(nmbr_epochs):
+            results[i] = self.train_epoch()
+        if get_intermediate_results:
+            return (self.totalReward, results)
+        return self.totalReward
