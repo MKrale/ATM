@@ -17,8 +17,8 @@ class AMRL_Agent:
         self.QTable = np.zeros( (self.StateSize,self.ActionSize,self.MeasureSize) )
         self.QTable[:,:,1] = self.m_bias
         self.QTriesTable = np.zeros( (self.StateSize, self.ActionSize, self.MeasureSize) )
-        self.TransTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
-        self.TriesTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
+        self.TransTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) ) + 1/self.StateSize
+        self.TriesTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) ) 
         self.totalReward = 0
         # Variables for one epoch
         self.reset_Epoch_Vars()
@@ -26,8 +26,10 @@ class AMRL_Agent:
     def reset_Epoch_Vars(self):
         self.currentReward = 0
         self.steps_taken = 0
+        self.measurements_taken = 0
         self.env.reset()
         self.totalReward += self.currentReward
+        #TODO: add variable to keep track of 'actual reward' without costs, and see how this gets effected
 
 
     def update_TransTable(self,s1, s2, action):
@@ -45,9 +47,11 @@ class AMRL_Agent:
         previousQ, previousTries = self.QTable[s1,action,measure], self.QTriesTable[s1,action,measure]
         Q_s2 = np.max(self.QTable[s2])
         self.QTriesTable[s1,action,measure] += 1
-        self.QTable[s1,action,measure] = (previousQ*previousTries + Q_s2 + reward) / (previousTries+1)
         if measure:
-            self.QTable[s1,action,0] = (previousQ*previousTries + Q_s2 + reward + 0.01) / (previousTries+1)
+            self.QTable[s1,action,0] = (previousQ*previousTries + Q_s2 + reward) / (previousTries+1)
+            self.QTable[s1,action,1] = (previousQ*previousTries + Q_s2 + reward - 0.01) / (previousTries+1)
+        else:
+            self.QTable[s1,action,0] = (previousQ*previousTries + Q_s2 + reward) / (previousTries+1)
         #print("Current Q_table segment:"+str(self.QTable[s1,action,measure]))
 
     def guess_current_State(self,s,action):
@@ -56,6 +60,7 @@ class AMRL_Agent:
         '''Returns optimal actionPair according to Q-table'''
         #print(self.QTable[s])
         return (np.unravel_index(np.argmax(self.QTable[s]), self.QTable[s].shape))
+
     def find_nonOptimal_actionPair(self,s):
         '''Returns random actionPair'''
         return  ( np.random.randint(0,self.ActionSize), np.random.randint(0,self.MeasureSize) )
@@ -72,28 +77,30 @@ class AMRL_Agent:
             else:
                 (action,measure) = self.find_nonOptimal_actionPair(s_current) #choose non-optimal action
             (obs, reward, done, info) = self.env.step(action)
+            #if done and reward == 0:
+                #reward -= 0.1
 
             # Update reward, Q-table and s_next
             if measure:
-                reward -= self.measureCost
                 self.update_TransTable(s_current,obs,action)
+                self.measurements_taken += 1
                 s_next = obs
             else:
                 s_next = self.guess_current_State(s_current, action)
             self.update_QTable(s_current,action,measure,s_next, reward)
             s_current = s_next
-            self.currentReward += reward
+            self.currentReward += reward - self.measureCost*measure #this could be cleaner...
             self.steps_taken += 1
         
         # Reset after epoch, return reward and #steps
         self.totalReward += self.currentReward
-        (rew, steps) = self.currentReward, self.steps_taken
+        (rew, steps, ms) = self.currentReward, self.steps_taken, self.measurements_taken
         self.reset_Epoch_Vars()
-        return (rew,steps)
+        return (rew,steps,ms)
 
     def train_run(self, nmbr_epochs, get_intermediate_results=False):
         self.reset_Run_Variables()
-        results = np.zeros((nmbr_epochs,2))
+        results = np.zeros((nmbr_epochs,3))
         for i in range(nmbr_epochs):
             results[i] = self.train_epoch()
         if get_intermediate_results:
