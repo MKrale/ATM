@@ -13,21 +13,23 @@ import time as t
 from scipy.signal import savgol_filter
 
 import AMRL_Agent as amrl
+from AM_Env_wrapper import AM_ENV as wrapper
 import AMRL_variant as amrlv
+
         ### SETTING UP ENVIRONMENT ###
+# Lake Envs
+s_init = 0
+MeasureCost = 0.01
 
-# Lake env:
-# TODO: try this for different environments, too!
+# Small Lake env, deterministic:
 env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=False)
-env.reset()
-Actions = np.arange(0,4)
-States = np.arange(0,16)
-s_init = 1
-nmbr_vars_recorded = 3
+StateSize, ActionSize = 16,4
+ENV_SmallLake_det = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
 
-ActionSize = np.size(Actions)
-
-StateSize = np.size(States)
+# Small Lake env, non-deterministic
+env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=True)
+StateSize, ActionSize = 16,4
+ENV_SmallLake_nondet = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
 
 ######################################################
         ###     Defining Agents        ###
@@ -37,6 +39,7 @@ StateSize = np.size(States)
 Measurements= np.array([0,1])
 MeasureSize = 2
 eta = 0.1
+nmbr_vars_recorded = 3
 
 #Normal AMRL-agents:
 #agent_1 = amrl.AMRL_Agent(env, StateSize, MeasureSize, ActionSize)
@@ -50,10 +53,10 @@ eta = 0.1
 # agent_3 = amrlv.AMRL_Variant_1(env, StateSize, MeasureSize, ActionSize,measureCost = 0.2)
 # agent_4 = amrlv.AMRL_Variant_1(env, StateSize, MeasureSize, ActionSize,measureCost = 0.2, m_bias = 0.05)
 
-agent_var1 = amrlv.AMRL_Variant_1(env, StateSize, MeasureSize, ActionSize)
-agent_var2 = amrlv.AMRL_Variant_2(env, StateSize, MeasureSize, ActionSize)
-agent_nor = amrl.AMRL_Agent(env, StateSize, MeasureSize, ActionSize)
-agents = [agent_var1, agent_var2, agent_nor]
+agent_var1 = amrlv.AMRL_Variant_1(ENV_SmallLake_det)
+agent_var2 = amrlv.AMRL_Variant_2(ENV_SmallLake_det)
+agent_nor = amrl.AMRL_Agent(ENV_SmallLake_det)
+agents = [agent_var1,agent_var2, agent_nor]
 #agents = [agent_1, agent_2, agent_3, agent_4]
 
 #legend = ["Bias = 0.1, Cost = 0.01 (Default)", "Bias = 0.05, Cost = 0.01", "Bias = 0.1, Cost = 0.2", "Bias = 0.05, Cost = 0.2"]
@@ -64,8 +67,8 @@ legend = ["AMRL-Agent Variant v1", "AMRL-Agent Variant v2", "Original AMRL-Agent
 ######################################################
 
 # Defining runs
-nmbr_episodes = 2500
-nmbr_runs = 5
+nmbr_episodes = 1000
+nmbr_runs = 1
 all_results = np.zeros((len(agents),nmbr_runs, nmbr_episodes, nmbr_vars_recorded))
 all_avgs = np.zeros((len(agents), nmbr_episodes, nmbr_vars_recorded))
 
@@ -75,8 +78,10 @@ for a in range(len(agents)):
         print("Running agent {}...".format(a+1))
         thisAgent = agents[a]
         for i in range(nmbr_runs):
+                t_this_start = t.perf_counter()
                 (r_avg, all_results[a,i]) = thisAgent.train_run(nmbr_episodes, True)
-                print("Run {0} done!".format(i))
+                t_this_end = t.perf_counter()
+                print("Run {0} done! (in {1} s)".format(i, t_this_end-t_this_start))
         all_avgs[a] = np.average(all_results[a], axis=0)
         print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))
 
@@ -119,6 +124,8 @@ for a in range(len(agents)):
 plt.legend(legend)
 plt.savefig("AMRL-var_cumresults_redone_reward.png")
 plt.clf()
+
+
 # Plotting # Steps
 plt.title("Average nmbr Steps per episode for AMRL var in Lake Environment")
 plt.ylabel("# Steps taken")
@@ -129,6 +136,7 @@ for a in range(len(agents)):
 
 plt.legend(legend)
 plt.savefig("AMRL-var_results_redone_steps.png")
+plt.clf()
 
 # Plotting # measurements
 plt.title("Average nmbr measurements per episode for AMRL var in Lake Environment")
@@ -140,5 +148,35 @@ for a in range(len(agents)):
 
 plt.legend(legend)
 plt.savefig("AMRL-var_results_redone_measurements.png")
+plt.clf()
 
 print("Done!")
+
+# Plotting Reward + measureCosts
+plt.title("Average reward (excluding costs) per episode for AMRL-var in Lake Environment")
+plt.ylabel("Reward")
+
+x = np.arange(nmbr_episodes)
+for a in range(len(agents)):
+        plt.plot(x, all_avgs[a,:,0])
+        plt.plot(x, all_avgs[a,:,0]+all_avgs[a,:,2]*measureCost)
+        
+legend = ["AMRL-Agent Variant v1, cost included", "AMRL-Agent Variant v1, cost excluded","AMRL-Agent Variant v2, cost included", "AMRL-Agent Variant v2, no excluded", "Original AMRL-Agent, cost included", "Original AMRL-Agent, cost excluded"]
+plt.legend(legend)
+plt.savefig("AMRL-var_results_noCost_redone_reward.png")
+plt.clf()
+
+# Plotting Reward + measureCosts
+plt.title("Average reward (excluding costs) per episode for AMRL-var in Lake Environment")
+plt.ylabel("Reward")
+
+# Plotting cum. Reward + measurecosts
+x = np.arange(nmbr_episodes)
+for a in range(len(agents)):
+        plt.plot(x, np.cumsum(all_avgs[a,:,0]))
+        plt.plot(x, np.cumsum(all_avgs[a,:,0]+all_avgs[a,:,2]*measureCost))
+        
+legend = ["AMRL-Agent Variant v1, cost included", "AMRL-Agent Variant v1, cost excluded","AMRL-Agent Variant v2, cost included", "AMRL-Agent Variant v2, no excluded", "Original AMRL-Agent, cost included", "Original AMRL-Agent, cost excluded"]
+plt.legend(legend)
+plt.savefig("AMRL-var_results_noCost_redone_reward.png")
+plt.clf()

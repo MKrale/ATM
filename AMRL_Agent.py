@@ -5,9 +5,14 @@ import numpy as np
 class AMRL_Agent:
     '''Creates a AMRL-Agent, as described in https://arxiv.org/abs/2005.12697'''
 
-    def __init__(self,env,StateSize,MeasureSize,ActionSize, eta=0.05, s_init = 1, m_bias = 0.1, measureCost=0.01):
+    def __init__(self,env, eta=0.05, m_bias = 0.1):
         #load all environment-specific variables
-        self.env, self.StateSize, self.MeasureSize, self.ActionSize,self.eta, self.s_init, self.m_bias, self.measureCost = env, StateSize, MeasureSize, ActionSize,eta, s_init, m_bias, measureCost
+        self.env = env
+        self.StateSize, self.ActionSize, self.measureCost, self.s_init = env.get_vars()
+
+        #load all algo-specific vars (if provided)
+        self.eta, self.m_bias = eta, m_bias
+        self.MeasureSize = 2
 
         # Create all episode and run-specific variables
         self.reset_Run_Variables()
@@ -70,28 +75,29 @@ class AMRL_Agent:
         '''Training algorithm of AMRL as given in paper'''
         s_current = self.s_init
         done = False
-        while not done:
+        while not done and (self.steps_taken < 10*self.StateSize):
             # Chose and take step:
             if np.random.random(1) < 1-self.eta:
                 (action,measure) = self.find_optimal_actionPair(s_current) #Choose optimal action
             else:
                 (action,measure) = self.find_nonOptimal_actionPair(s_current) #choose non-optimal action
-            (obs, reward, done, info) = self.env.step(action)
-            #if done and reward == 0:
-                #reward -= 0.1
 
             # Update reward, Q-table and s_next
             if measure:
+                (obs, reward, done) = self.env.step_and_measure(action)
                 self.update_TransTable(s_current,obs,action)
                 self.measurements_taken += 1
                 s_next = obs
             else:
+                (reward, done) = self.env.step_no_measure(action)
                 s_next = self.guess_current_State(s_current, action)
             self.update_QTable(s_current,action,measure,s_next, reward)
             s_current = s_next
             self.currentReward += reward - self.measureCost*measure #this could be cleaner...
             self.steps_taken += 1
-        
+        if not done:
+            print ("max nmbr of steps exceded!")
+
         # Reset after epoch, return reward and #steps
         self.totalReward += self.currentReward
         (rew, steps, ms) = self.currentReward, self.steps_taken, self.measurements_taken
@@ -103,6 +109,7 @@ class AMRL_Agent:
         results = np.zeros((nmbr_epochs,3))
         for i in range(nmbr_epochs):
             results[i] = self.train_epoch()
+        print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
         if get_intermediate_results:
             return (self.totalReward, results)
         return self.totalReward
