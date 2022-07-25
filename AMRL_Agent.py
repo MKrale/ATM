@@ -106,10 +106,10 @@ class AMRL_Agent:
 
     def run(self, nmbr_epochs, get_intermediate_results=False):
         self.reset_Run_Variables()
-        results = np.zeros((nmbr_epochs,3))
+        rewards, steps, ms = np.zeros((nmbr_epochs)), np.zeros((nmbr_epochs)), np.zeros((nmbr_epochs))
         for i in range(nmbr_epochs):
-            results[i] = self.train_epoch()
+            rewards[i], steps[i], ms[i] = self.train_epoch()
         #print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
         if get_intermediate_results:
-            return (self.totalReward, results)
+            return (self.totalReward, rewards, steps, ms)
         return self.totalReward
