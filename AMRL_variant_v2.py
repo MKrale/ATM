@@ -22,6 +22,11 @@ class AMRL_v2:
         self.selfLoopPenalty = 0.8
         self.lossBoost = 1
 
+        self.lr = 1 # Learning rate. 
+        #Currently unused: instead, Q is re-calculate each pass using Trans-table and current Q-values
+        self.df = 0.95 # Discount Factor
+
+
         self.init_run_variables()
 
     def init_run_variables(self):
@@ -262,7 +267,7 @@ class AMRL_v2:
 
         #PROBLEM: self-loops are incentivized: should be fixed somehow
 
-        action = H[-1]
+        action = H[-1] 
 
         for s1 in S1:
             p1 = S1[s1]
@@ -277,7 +282,7 @@ class AMRL_v2:
                         thisQ += pt*np.max(self.QTableUnbiased[s2])
                     elif s1 == s2:
                         thisQ += pt*self.selfLoopPenalty*np.max(self.QTableUnbiased[s2])
-            totQ = (previousQ*previousTries + (p1 * (thisQ + reward)) ) / (previousTries+p1)
+            totQ = (previousQ*previousTries + (p1 * (self.df*thisQ + reward)) ) / (previousTries+p1)
 
             #print(s1,action,previousQ,totQ, previousQ-totQ)
             #print("Q-update: s1={}, s2={}, totQ ={}, current Q={}".format(s1,s2,totQ,self.QTableUnbiased[s1,action]))
