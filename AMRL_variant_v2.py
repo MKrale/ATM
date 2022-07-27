@@ -1,7 +1,7 @@
 ### AMRL-variant using particles to keep track of states, and Loss function to determine whether or not to measure.
 
-import this
 import numpy as np
+import math as m
 from AM_Env_wrapper import AM_ENV
 
 
@@ -11,7 +11,7 @@ class AMRL_v2:
     ###     INITIALISATION AND DEFINING VARIABLES:      ###
     #######################################################
 
-    def __init__(self, env:AM_ENV, eta = 0.01, nmbr_particles = 10):
+    def __init__(self, env:AM_ENV, eta = 0.05, nmbr_particles = 10):
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
@@ -91,13 +91,17 @@ class AMRL_v2:
             else:
                 self.update_model(s,s_last_measurement, s_previous, H, reward, type="Q")
 
-            # Take action and update state & history
+            # Take optimal action or random action (according to eta)
+
+            if np.random.rand() < self.eta:
+                action = m.floor(np.random.rand()*self.ActionSize)
             (reward, self.is_done) = self.env.step(action, s)
+                
+            # Update estimate s & logging variables
             s_previous = s
             s = self.guess_next_state(s, action)
             H.append(action)           
 
-            # Update logging variables
             self.episodeReward  += reward - cost
             self.steps_taken    += 1
             #print(reward,self.QTable[2],self.TransTable[2])
