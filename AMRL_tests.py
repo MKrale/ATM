@@ -12,6 +12,7 @@ import AMRL_Agent as amrl
 from AM_Env_wrapper import AM_ENV as wrapper
 from AM_Env_wrapper import AM_Visualiser as visualiser
 from AMRL_variant_v2 import AMRL_v2
+from AMRL_variant_v3 import AMRL_v3
 
 # Test code:
 
@@ -25,13 +26,13 @@ StateSize, ActionSize = 64,4
 
 keep_going = True
 r_tot = 0
-for i in range(10):
+for i in range(1):
     ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init, True)
     ENV.reset()
 
-    agent_var2 = AMRL_v2(ENV, nmbr_particles = 10)
+    agent = AMRL_v3(ENV, nmbr_particles = 10)
 
-    (r_avg, rewards,steps,ms) = agent_var2.run(2000, True) 
+    (r_avg, rewards,steps,ms) = agent.run(4000, True) 
     print(np.sum(ms))
     print(np.sum(steps) -np.sum(ms))  
     print(r_avg)
@@ -39,16 +40,15 @@ for i in range(10):
 
 
 
-    if r_avg < 200:
-        print ("failed to find optimal strategy")
+    print ("failed to find optimal strategy")
 
-        vis = visualiser(ENV, agent_var2)
-        vis.plot_choice_certainty()
-        vis.plot_choice_density()
-        vis.plot_choice_maxQ()
-        vis.plot_choice_state_accuracy()
-        print("Density, Most Common Choices & Accuracy")
-        print (np.reshape(vis.density,  (8,8)))
-        print (np.reshape(np.argmax(vis.choice ,axis=1) ,  (8,8)))
-        print (np.reshape(vis.accuracy, (8,8)))
-        keep_going = False
+    vis = visualiser(ENV, agent)
+    vis.plot_choice_certainty()
+    vis.plot_choice_density()
+    vis.plot_choice_maxQ()
+    vis.plot_choice_state_accuracy()
+    print("Density, Most Common Choices & Accuracy")
+    print (np.reshape(vis.density,  (8,8)))
+    print (np.reshape(np.argmax(vis.choice ,axis=1) ,  (8,8)))
+    print (np.reshape(vis.accuracy, (8,8)))
+    keep_going = False

@@ -21,6 +21,7 @@ import AMRL_Agent as amrl
 from AM_Env_wrapper import AM_ENV as wrapper
 from AM_Env_wrapper import AM_Visualiser as visualiser
 from AMRL_variant_v2 import AMRL_v2
+from AMRL_variant_v3 import AMRL_v3
 
 from AM_Gyms.NchainEnv import NChainEnv
 
@@ -138,11 +139,13 @@ match algo_name:
                 agent = amrl.AMRL_Agent(ENV)
         case "AMRL_v2":
                 agent = AMRL_v2(ENV)
+        case "AMRL_v3":
+                agent = AMRL_v3(ENV)
 
 """" 
 To be added: 
         * ACNO's
-        * AMRL_v2 with different settings?
+        * AMRL_vX's with different settings?
 """
 
 ######################################################
@@ -187,7 +190,7 @@ for i in range(nmbr_runs):
         t_this_end = t.perf_counter()
         if doSave:
                 export_data(rewards[:i+1],steps[:i],measures[:i],t_start)
-        print("Run {0} done with average reward {2}! (in {1} s)\n".format(i, t_this_end-t_this_start, r_avg))
+        print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i, t_this_end-t_this_start, r_avg, np.average(steps[i]),np.average(measures[i])))
 print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))
 
 ######################################################
