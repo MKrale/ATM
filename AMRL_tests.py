@@ -36,20 +36,19 @@ for i in range(10):
     print(np.sum(steps) -np.sum(ms))  
     print(r_avg)
     r_tot += r_avg
-print (r_tot/(i+1))
 
 
 
-    # if r_avg < 200:
-    #     print ("failed to find optimal strategy")
+    if r_avg < 200:
+        print ("failed to find optimal strategy")
 
-    #     vis = visualiser(ENV, agent_var2)
-    #     vis.plot_choice_certainty()
-    #     vis.plot_choice_density()
-    #     vis.plot_choice_maxQ()
-    #     vis.plot_choice_state_accuracy()
-    #     print("Density, Most Common Choices & Accuracy")
-    #     print (np.reshape(vis.density,  (4,4)))
-    #     print (np.reshape(np.argmax(vis.choice ,axis=1) ,  (4,4)))
-    #     print (np.reshape(vis.accuracy, (4,4)))
-    #     keep_going = False
+        vis = visualiser(ENV, agent_var2)
+        vis.plot_choice_certainty()
+        vis.plot_choice_density()
+        vis.plot_choice_maxQ()
+        vis.plot_choice_state_accuracy()
+        print("Density, Most Common Choices & Accuracy")
+        print (np.reshape(vis.density,  (8,8)))
+        print (np.reshape(np.argmax(vis.choice ,axis=1) ,  (8,8)))
+        print (np.reshape(vis.accuracy, (8,8)))
+        keep_going = False

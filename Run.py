@@ -108,9 +108,17 @@ match env_name:
                         MeasureCost = MeasureCost_Taxi_default
                 ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
 
-        case "Chain":
-                env = NChainEnv()
-                StateSize, ActionSize, s_init = 12, 2, 0
+        case "Chain_big":
+                n=12
+                env = NChainEnv(n)
+                StateSize, ActionSize, s_init = n, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.05
+                ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
+        case "Chain_small":
+                n=5
+                env = NChainEnv(n)
+                StateSize, ActionSize, s_init = n, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.05
                 ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
@@ -118,7 +126,6 @@ match env_name:
 """" 
 To be added: 
         * Basic loss-env described in report
-        * Chain-environment AMRL-paper
         * ACNO-settings?
 """
 
