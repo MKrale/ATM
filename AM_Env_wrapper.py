@@ -39,6 +39,8 @@ class AM_ENV():
         # Perform action on env:
         (obs, reward, done, info) = self.env.step(action)
         self.obs = obs
+        if done:
+            self.obs = 0
 
         # Log action (if turned on):
         if ( (s == None) & self.log_choices ):
