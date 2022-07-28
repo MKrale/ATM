@@ -13,6 +13,17 @@ class AM_ENV():
         self.MeasureCost = MeasureCost
         self.s_init = s_init
         self.obs = 0
+        self.isDone = False
+        self.envName = env.unwrapped.spec.id
+        
+        # Dealing with the fact that frozen lake env does never return the terminal state:
+        if self.envName == "FrozenLake-v1":
+            self.seperate_terminal_state=True
+            self.TerminalState = self.StateSize-1
+        
+        print("Name={}".format(env.unwrapped.spec.id))
+        # if type(self.env).__name__ == FrozenLake:
+        #     print()
 
         self.log_choices = log_choices
         if self.log_choices:
@@ -49,10 +60,15 @@ class AM_ENV():
         elif self.log_choices:
             self.log_action(action, obs, s)
 
+        self.isDone = done
         return (reward, done)
 
     def measure(self): #For full version should include m as argument
+        if self.isDone & self.seperate_terminal_state:
+            return (self.TerminalState, self.MeasureCost)
         return (self.obs, self.MeasureCost)
+
+            
  
     def reset(self):
         self.env.reset()

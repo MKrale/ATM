@@ -22,7 +22,7 @@ class AMRL_v3:
     ###     INITIALISATION AND DEFINING VARIABLES:      ###
     #######################################################
 
-    def __init__(self, env:AM_ENV, eta = 0.0, nmbr_particles = 10):
+    def __init__(self, env:AM_ENV, eta = 0.01, nmbr_particles = 250):
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
@@ -31,13 +31,13 @@ class AMRL_v3:
         self.eta, self.nmbr_particles = eta, nmbr_particles
         self.NmbrOptimiticTries = 20 # smaller for smaller environments
         self.selfLoopPenalty = 0.8
-        self.lossBoost = 1
-        self.stopPenalty = 0.5 # smaller (0.01) for smaller/nondet environments
+        self.lossBoost = 10
+        self.stopPenalty = 0.01 # smaller (0.01) for smaller/nondet environments
         self.updateAccuracy = 0.01
 
         self.lr = 1 # Learning rate. 
         #Currently unused: instead, Q is re-calculate each pass using Trans-table and current Q-values
-        self.df = 0.95 # Discount Factor
+        self.df = 0.99 # Discount Factor
 
 
         self.init_run_variables()
@@ -114,8 +114,8 @@ class AMRL_v3:
 
             # Take optimal action or random action (according to eta)
 
-            if np.random.rand() < self.eta:
-                action = m.floor(np.random.rand()*self.ActionSize)
+            # if np.random.rand() < self.eta:
+            #     action = m.floor(np.random.rand()*self.ActionSize)
             (reward, self.is_done) = self.env.step(action, s)
                 
             # Update estimate s & logging variables
@@ -125,22 +125,32 @@ class AMRL_v3:
 
             self.episodeReward  += reward - cost
             self.steps_taken    += 1
-            #print(s, s_previous)
+            #print(s_previous,s)
 
             if self.steps_taken % 100 == 0:
                 print("{} steps taken in one episode: performing global update Q".format(self.steps_taken))
                 self.update_Q_globally()
+                print(self.QTable)
         #print(reward,self.QTable,self.TransTable)
-            
-        # Update model after done
 
-        if not (self.has_transition_support(s, H) ):
+        # Update model after done
+        #print("DONE!\n\n\n\n\n")
+        
+        if not (self.has_transition_support(s_previous, H) ):
             (s_observed, cost) = self.env.measure()
             #print(s,s_observed, s_previous,H)
             s={}
             s[s_observed]=1
             self.episodeReward -= cost
-        self.update_model(s,s_last_measurement,s_previous, H, reward, type="QT", isDone=True)
+            self.update_model(s,s_last_measurement,s_previous, H, reward, type="T", isDone=True)
+
+        # Last step:
+        #print(s_previous, s, reward)
+        #print(s_previous, s)
+        self.update_model(s,s_last_measurement,s_previous, H, reward, type="Q", isDone=True)
+        # Last state as terminal:
+        self.update_terminal(s,0)
+        # Globally update Q:
         self.update_Q_globally()
         #print(self.QTable)
 
@@ -156,7 +166,7 @@ class AMRL_v3:
             if (i%100 == 0):
                 print(i)
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
-        print(self.TransTable, self.TTriesTable, self.QTable)
+        print(self.TransTable, self.TTriesTable, self.QTable, self.QTableRewards)
         if get_full_results:
             return(self.totalReward, epreward,epsteps,epms)
         return self.totalReward
@@ -258,7 +268,7 @@ class AMRL_v3:
 
 
     # Update function for last step only 
-    def update_T_lastStep_only(self,S1,S2,H, isDone):
+    def update_T_lastStep_only(self,S1,S2,H, isDone=False):
         's1 = last state, s2 = current state'
         if len(H)>0:
             action = H[-1]
@@ -282,6 +292,8 @@ class AMRL_v3:
                 #if (s1 ==1 & action==1):
                     #print("Testing T-update: S1={}, S2={}, action={}, prevTries={}, unbiased T-table non-zero at {} (with table={})".format(S1,S2,action,prevTries,np.nonzero(self.TransTableUnbiased[s1,action]),self.TransTableUnbiased[s1,action]))
 
+                # Update s2 as self-loop if terminated:
+                
             return
                 
                 #     # Decide to used biased or unbiased table:
@@ -294,10 +306,17 @@ class AMRL_v3:
                 #     self.TransTable[s1,action] =  unbiasfactor * self.TransTableUnbiased[s1,action] + biasfactor
                 #     #print("T-table for {0} with action {1} chaged to {2} (unbiased = {3})".format(s1,action,self.TransTable[s1,action],self.TransTableUnbiased[s1,action]))
 
+    def update_terminal(self, S, reward):
+        #print(S)
+        for action in range(self.ActionSize):
+            self.update_T_lastStep_only(S, S, [action])
+            self.update_Q_lastStep_only(S, S, [action], 0 ) #reward-self.stopPenalty)
+
+
+
     def update_Q_lastStep_only(self,S1, S2, H, reward, isDone = False):
 
         #PROBLEM: self-loops are incentivized: should be fixed somehow
-
         action = H[-1] 
 
         for s1 in S1:
@@ -305,16 +324,13 @@ class AMRL_v3:
             thisQ = 0
             previousQ, previousTries = self.QTableUnbiased[s1,action], self.QTriesTable[s1,action]
             thisTries = previousTries + p1
-            if isDone:
-                reward -= self.stopPenalty
             for s2 in S2:
                 p2 = S2[s2]
                 pt = p1*p2 #chance of this transition having occured
-                if not isDone:
-                    if s1 != s2:
-                        thisQ += pt*np.max(self.QTableUnbiased[s2])
-                    elif s1 == s2:
-                        thisQ += pt*self.selfLoopPenalty*np.max(self.QTableUnbiased[s2])
+                if s1 != s2:
+                    thisQ += pt*np.max(self.QTableUnbiased[s2])
+                elif s1 == s2:
+                    thisQ += pt*self.selfLoopPenalty*np.max(self.QTableUnbiased[s2])
 
             totQ = (previousQ*previousTries + (p1 * (self.df*thisQ + reward)) ) / (previousTries+p1)
 
@@ -324,6 +340,8 @@ class AMRL_v3:
 
             # Update reward table
             self.QTableRewards[s1,action] = (self.QTableRewards[s1,action]*previousTries +reward) / (previousTries+p1)
+            # if reward > 0:
+            #     print("reward={}, s1={}(withp1={}), action={}, Q-value = {}".format(reward,s1,p1,action,self.QTableRewards[s1,action]))
 
             # Update QTable according to QTable_actual and #visits s1 (optimism)
             if self.QTriesTable[s1,action] > self.NmbrOptimiticTries:
