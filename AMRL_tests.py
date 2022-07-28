@@ -21,8 +21,8 @@ s_init = 0
 MeasureCost = 0.01
 
 # Small Lake env, deterministic:
-env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=True)
-StateSize, ActionSize = 16,4
+env = gym.make('FrozenLake-v1', map_name="8x8", is_slippery=True)
+StateSize, ActionSize = 64,4
 
 keep_going = True
 r_tot = 0
@@ -32,7 +32,7 @@ for i in range(1):
 
     agent = AMRL_v3(ENV, nmbr_particles = 10)
 
-    (r_avg, rewards,steps,ms) = agent.run(2500, True) 
+    (r_avg, rewards,steps,ms) = agent.run(4000, True) 
     print(np.sum(ms))
     print(np.sum(steps) -np.sum(ms))  
     print(r_avg)
@@ -48,7 +48,7 @@ for i in range(1):
     vis.plot_choice_maxQ()
     vis.plot_choice_state_accuracy()
     print("Density, Most Common Choices & Accuracy")
-    print (np.reshape(vis.density,  (4,4)))
-    print (np.reshape(np.argmax(vis.choice ,axis=1) ,  (4,4)))
-    print (np.reshape(vis.accuracy, (4,4)))
+    print (np.reshape(vis.density,  (8,8)))
+    print (np.reshape(np.argmax(vis.choice ,axis=1) ,  (8,8)))
+    print (np.reshape(vis.accuracy, (8,8)))
     keep_going = False

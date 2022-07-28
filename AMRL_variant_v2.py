@@ -24,7 +24,7 @@ class AMRL_v2:
     ###     INITIALISATION AND DEFINING VARIABLES:      ###
     #######################################################
 
-    def __init__(self, env:AM_ENV, eta = 0.05, nmbr_particles = 200):
+    def __init__(self, env:AM_ENV, eta = 0.05, nmbr_particles = 10):
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
