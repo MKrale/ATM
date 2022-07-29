@@ -56,7 +56,10 @@ nmbr_runs       = int(args.nmbr_runs)
 plot            = args.plot
 file_name       = args.f
 rep_name        = args.rep
-doSave          = args.save
+if args.save == "False" or args.save == "false":
+        doSave = False
+else:
+        doSave = True
 
 
 ######################################################
@@ -189,7 +192,7 @@ for i in range(nmbr_runs):
         (r_avg, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, True)
         t_this_end = t.perf_counter()
         if doSave:
-                export_data(rewards[:i+1],steps[:i],measures[:i],t_start)
+                export_data(rewards[:i+1],steps[:i+1],measures[:i+1],t_start)
         print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i, t_this_end-t_this_start, r_avg, np.average(steps[i]),np.average(measures[i])))
 print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))
 

@@ -24,7 +24,7 @@ class AMRL_v2:
     ###     INITIALISATION AND DEFINING VARIABLES:      ###
     #######################################################
 
-    def __init__(self, env:AM_ENV, eta = 0.05, nmbr_particles = 10):
+    def __init__(self, env:AM_ENV, eta = 0.05, nmbr_particles = 100):
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
@@ -37,7 +37,7 @@ class AMRL_v2:
 
         self.lr = 1 # Learning rate. 
         #Currently unused: instead, Q is re-calculate each pass using Trans-table and current Q-values
-        self.df = 0.95 # Discount Factor
+        self.df = 0.99 # Discount Factor
 
 
         self.init_run_variables()
@@ -91,7 +91,7 @@ class AMRL_v2:
             (action, estimated_loss) = self.obtain_optimal_action(s)
 
             # If Loss is "too big" or we do not have enough info about the current state, we do the following:
-            if estimated_loss * self.lossBoost > self.max_estimated_loss or (not (self.has_transition_support(s, H) )):
+            if estimated_loss * self.lossBoost > self.max_estimated_loss or (not (self.has_transition_support(s_previous, H) )):
                 # measure and update model:
                 #print("hello?")
                 self.measurements_taken += 1
@@ -126,7 +126,7 @@ class AMRL_v2:
             
         # Update model after done
 
-        if not (self.has_transition_support(s, H) ):
+        if not (self.has_transition_support(s_previous, H) ):
             (s_observed, cost) = self.env.measure()
             s={}
             s[s_observed]=1
