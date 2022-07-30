@@ -22,18 +22,19 @@ class AMRL_v3:
     ###     INITIALISATION AND DEFINING VARIABLES:      ###
     #######################################################
 
-    def __init__(self, env:AM_ENV, eta = 0.0, nmbr_particles = 100):
+    def __init__(self, env:AM_ENV, eta = 0.00, nmbr_particles = 100):
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
 
         # Algo-specific arguments:
         self.eta, self.nmbr_particles = eta, nmbr_particles
-        self.NmbrOptimiticTries = 20 # smaller for smaller environments
-        self.selfLoopPenalty = 0.8
+        self.NmbrOptimiticTries = 50 # smaller for smaller environments
+        self.selfLoopPenalty = 0.95
         self.lossBoost = 1
-        self.stopPenalty = 0.01 # smaller (0.01) for smaller/nondet environments
+        self.stopPenalty = 0.0 # smaller (0.01) for smaller/nondet environments
         self.updateAccuracy = 0.01
+        self.max_estimated_loss = self.MeasureCost
 
         self.lr = 1 # Learning rate. 
         #Currently unused: instead, Q is re-calculate each pass using Trans-table and current Q-values
@@ -68,7 +69,7 @@ class AMRL_v3:
         # State variables
         
         self.is_done                = False
-        self.max_estimated_loss     = self.MeasureCost
+        
 
 
         self.env.reset()
@@ -95,9 +96,8 @@ class AMRL_v3:
             (action, estimated_loss) = self.obtain_optimal_action(s)
 
             # If Loss is "too big" or we do not have enough info about the current state, we do the following:
-            if estimated_loss * self.lossBoost > self.max_estimated_loss or (not (self.has_transition_support(s_previous, H) )):
+            if (estimated_loss * self.lossBoost > self.max_estimated_loss) or (not (self.has_transition_support(s_previous, H) )):
                 # measure and update model:
-                #print("hello?")
                 self.measurements_taken += 1
                 (s_observed, cost) = self.env.measure()
                 # update all vars  & update model
@@ -111,8 +111,7 @@ class AMRL_v3:
                 action = self.obtain_optimal_action(s, returnLoss = False)
 
             else:
-                1
-                #self.update_model(s,s_last_measurement, s_previous, H, reward, type="Q")
+                self.update_model(s,s_last_measurement, s_previous, H, reward, type="Q")
 
             # Take optimal action or random action (according to eta)
 
@@ -131,8 +130,10 @@ class AMRL_v3:
 
             if self.steps_taken % 100 == 0:
                 print("{} steps taken in one episode: performing global update Q".format(self.steps_taken))
+                #print(s,self.QTable)
                 self.update_Q_globally()
-                print(self.QTable)
+                #print(self.QTable)
+                
         #print(reward,self.QTable,self.TransTable)
             
         # Update model after done
@@ -162,6 +163,7 @@ class AMRL_v3:
                 print(i)
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
         print(self.TransTable, self.TTriesTable, self.QTable, self.QTableRewards)
+        print(self.QTable[0,0])
         if get_full_results:
             return(self.totalReward, epreward,epsteps,epms)
         return self.totalReward
@@ -189,7 +191,7 @@ class AMRL_v3:
                 Loss +=  p * max( 0.0, np.max(self.QTable[s]) - self.QTable[s,a_opt] )
 
                 #print("Testing loss of state {0} = {4}: bo-value = {1} (action {5}), actual optimal value = {2}, from Q-table {3}".format(s, self.QTable[s,a_opt], np.max(self.QTable[s]), self.QTable[s], np.max( [0.0, self.QTable[s,a_opt] - np.max(self.QTable[s])] ), a_opt))
-            #print(Loss)
+            #print((S,Loss))
             #print("TRY: for S={0}, thisQ={1}, giving a_opt={2} with loss {3}".format(S,thisQ,a_opt,Loss))
             return (a_opt, Loss)
 
@@ -257,7 +259,7 @@ class AMRL_v3:
         #self.update_Q_MonteCarlo(s_current, s_last_measurement, H)
         if type=="QT" or type=="T":
             self.update_T_lastStep_only(s_last, s_current, H, isDone)
-            self.update_Q_lastStep_only(s_last, s_current, H, reward, isDone)
+            #self.update_Q_lastStep_only(s_last, s_current, H, reward, isDone)
         if type=="QT" or type=="Q":
             self.update_Q_lastStep_only(s_last, s_current, H, reward, isDone)
 
@@ -388,8 +390,8 @@ class AMRL_v3:
                         self.ChangedStates[s] = Q_tot
                         self.Q_max[s] = Q_tot
             del self.ChangedStates[s_source]
-            if i > 100:
-                print(i,s_source, self.ChangedStates)
+            if i > 3*self.StateSize:
+                print("Warning: on step {} of Global Q-table update (more than 3x the statesize)!",i)
                         
 
 

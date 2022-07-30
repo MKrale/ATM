@@ -30,7 +30,7 @@ for i in range(1):
     ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init, True)
     ENV.reset()
 
-    agent = AMRL_v3(ENV, nmbr_particles = 10)
+    agent = AMRL_v3(ENV)
 
     (r_avg, rewards,steps,ms) = agent.run(4000, True) 
     print(np.sum(ms))
