@@ -168,7 +168,8 @@ class AMRL_v2:
             Loss = 0
             for s in S:
                 p = S[s]
-                Loss +=  p * max( 0.0, np.max(self.QTable[s]) - self.QTable[s,a_opt] )
+                QTable_max = max (np.max(self.QTable[s]), np.max(self.QTableUnbiased[s]))
+                Loss +=  p * max( 0.0, QTable_max - self.QTableUnbiased[s,a_opt] )
 
                 #print("Testing loss of state {0} = {4}: bo-value = {1} (action {5}), actual optimal value = {2}, from Q-table {3}".format(s, self.QTable[s,a_opt], np.max(self.QTable[s]), self.QTable[s], np.max( [0.0, self.QTable[s,a_opt] - np.max(self.QTable[s])] ), a_opt))
             #print(Loss)

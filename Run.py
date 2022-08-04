@@ -24,6 +24,8 @@ from AMRL_variant_v2 import AMRL_v2
 from AMRL_variant_v3 import AMRL_v3
 
 from AM_Gyms.NchainEnv import NChainEnv
+from AM_Gyms.Loss_Env import Measure_Loss_Env
+from AM_Gyms.frozen_lake_v2 import FrozenLakeEnv_v2
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -103,6 +105,20 @@ match env_name:
                         MeasureCost = MeasureCost_Lake_default
                 ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
 
+        case "Lake_small_nondet_v2": 
+                env = FrozenLakeEnv_v2('FrozenLake-v1', map_name="4x4", is_slippery=True)
+                StateSize, ActionSize, s_init = 16,4,0
+                if MeasureCost == -1:
+                        MeasureCost = MeasureCost_Lake_default
+                ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
+
+        case "Lake_big_nondet_v2":
+                env = FrozenLakeEnv_v2('FrozenLake-v1', map_name="8x8", is_slippery=True)
+                StateSize, ActionSize, s_init = 64,4,0
+                if MeasureCost == -1:
+                        MeasureCost = MeasureCost_Lake_default
+                ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
+
 
         case "Taxi":
                 # Does not work: I probably need to rewrite some things, particularly so that s_init is fixed (not random, as now)
@@ -125,6 +141,13 @@ match env_name:
                 StateSize, ActionSize, s_init = n, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.05
+                ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
+
+        case "Loss":
+                env = Measure_Loss_Env()
+                StateSize, ActionSize, s_init = 4, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.1
                 ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         
 """" 
