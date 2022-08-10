@@ -2,3 +2,4 @@ __pycache__
 .venv
 Temporary_Plots
 Unused_Code
+.vscode

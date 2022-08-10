@@ -30,12 +30,13 @@ class AMRL_v3:
 
         # Algo-specific arguments:
         self.eta, self.nmbr_particles = eta, nmbr_particles
-        self.NmbrOptimiticTries = 25 # smaller for smaller environments
+        self.NmbrOptimiticTries = 10  #10 # smaller for smaller environments
         self.selfLoopPenalty = 0.95
         self.lossBoost = 1
         self.stopPenalty = 0.0 # smaller (0.01) for smaller/nondet environments
-        self.updateAccuracy = 0.05
+        self.updateAccuracy = 0.0001 # = 1/100 %
         self.max_estimated_loss = self.MeasureCost
+        self.optimisticPenalty = 1
 
         self.lr = 1 # Learning rate. 
         #Currently unused: instead, Q is re-calculate each pass using Trans-table and current Q-values
@@ -46,7 +47,7 @@ class AMRL_v3:
 
     def init_run_variables(self):
         # Arrays keeping track of model:
-        self.QTable             = np.ones ( (self.StateSize, self.ActionSize), dtype=np.longfloat )                          # as used by algos: includes initial optimitic bias
+        self.QTable             = np.ones ( (self.StateSize, self.ActionSize), dtype=np.longfloat ) * self.optimisticPenalty                         # as used by algos: includes initial optimitic bias
         self.QTableUnbiased     = np.zeros( (self.StateSize, self.ActionSize), dtype=np.longfloat )                          # only includes measured Q's
         self.QTriesTable        = np.zeros( (self.StateSize, self.ActionSize) )
         self.QTableRewards      = np.zeros( (self.StateSize, self.ActionSize) )
@@ -67,11 +68,8 @@ class AMRL_v3:
         self.steps_taken            = 0
         self.measurements_taken     = 0
 
-        # State variables
-        
+        # State variables        
         self.is_done                = False
-        
-
 
         self.env.reset()
     
@@ -82,8 +80,13 @@ class AMRL_v3:
     def run_episode(self):
         # Initialisation (all the s's...):
         self.init_episode_variables()
+
         s = {}
-        s[self.s_init] = 1
+        if self.s_init == -1: # Random start
+            for i in range(self.StateSize):
+                s[i] = 1.0/self.StateSize
+        else:
+            s[self.s_init] = 1
         s_previous = s
         s_last_measurement = self.s_init
         reward, cost, action = 0, 0, 0
@@ -130,7 +133,7 @@ class AMRL_v3:
             #print(s, s_previous)
 
             if self.steps_taken % 100 == 0:
-                print("{} steps taken in one episode: performing global update Q".format(self.steps_taken))
+                #print("{} steps taken in one episode: performing global update Q".format(self.steps_taken))
                 #print(s,self.QTable)
                 self.update_Q_globally()
                 #print(self.QTable)
@@ -157,12 +160,12 @@ class AMRL_v3:
         returnVars = (self.episodeReward, self.steps_taken, self.measurements_taken)
         return returnVars
 
-    def run(self, nmbr_episodes, get_full_results=False, print_info = True):
+    def run(self, nmbr_episodes, get_full_results=False, print_info = True, logmessages = True):
         self.init_run_variables()
         epreward,epsteps,epms = np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes))
         for i in range(nmbr_episodes):
-            if (i%100 == 0):
-                print(i)
+            if (i > 0 and i%100 == 0 and logmessages):
+                print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]) ) )
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
         if print_info:
             print("""
@@ -245,6 +248,8 @@ Unbiased QTable: {}
     def has_transition_support(self, S, H):
         if len(H) == 0:
             return True
+        if len(S) > 0.5*self.nmbr_particles:
+            return False
         support = 0
         #print("Support for S={}:".format(S))
         for s in S:
@@ -355,7 +360,7 @@ Unbiased QTable: {}
             if self.QTriesTable[s1,action] > self.NmbrOptimiticTries:
                 self.QTable[s1,action] = totQ
             else:
-                self.QTable[s1,action] = (thisTries*totQ + (self.NmbrOptimiticTries - thisTries)) / self.NmbrOptimiticTries
+                self.QTable[s1,action] = (thisTries*totQ + self.optimisticPenalty*(self.NmbrOptimiticTries - thisTries)) / self.NmbrOptimiticTries
                 #self.QTable[s1,action] = 1
 
     def update_Q_globally(self):
@@ -388,7 +393,7 @@ Unbiased QTable: {}
                     Q_neighbours[s] = Q_neighbours[s]*self.selfLoopPenalty
                     #print(Q_neighbours)
                     #print("/n/n")
-                    Q_tot = max(0,np.sum(Q_neighbours) + self.QTableRewards[s, action]) # ADD ? SIZE!
+                    Q_tot =  np.sum(Q_neighbours) + self.QTableRewards[s, action] # ADD ? SIZE!
                     #print(s,Q_tot)
                     self.QTableUnbiased[s,action] = Q_tot
                     #print(np.sum(Q_neighbours), np.sum(Q_neighbours)/len(np.nonzero(Q_neighbours)[0]))
@@ -397,13 +402,16 @@ Unbiased QTable: {}
                     # Add optimism if applicable:
                     Tries = self.QTriesTable[s,action]
                     if Tries > self.NmbrOptimiticTries:
-                        has_changed = ( Q_tot*(1-self.updateAccuracy) > np.max(self.QTable[s]))
+                        if Q_tot > 0:
+                            has_changed = ( Q_tot*(1-self.updateAccuracy) > np.max(self.QTable[s]))
+                        else:
+                            has_changed = ( Q_tot*(1+self.updateAccuracy) > np.max(self.QTable[s]))
                         self.QTable[s,action] = Q_tot
                     else:
                         #has_changed = (self.QTable[s,action]*self.NmbrOptimiticTries - (self.NmbrOptimiticTries -Tries)) / Tries < Q_tot
                         has_changed = False
                         #has_changed = self.QTableUnbiased[s,action] < Q_tot + self.updateAccuracy
-                        self.QTable[s,action] = (Tries*Q_tot + (self.NmbrOptimiticTries - Tries)) / self.NmbrOptimiticTries
+                        self.QTable[s,action] = (Tries*Q_tot + self.optimisticPenalty * (self.NmbrOptimiticTries - Tries)) / self.NmbrOptimiticTries
                     
                     # Add s to ChangedStates if new Q is maximal Q of state:
                     if has_changed:
@@ -412,7 +420,7 @@ Unbiased QTable: {}
             del self.ChangedStates[s_source]
             if i > 3*self.StateSize and i > 120:
                 print("Warning: on step {} of Global Q-table update (more than 3x the statesize)!",i)
-        #print(self.QTable)
+                #print(self.QTable)
                         
 
 

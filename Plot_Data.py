@@ -7,11 +7,12 @@ File for reading & plotting from given data files.
 # To be filled in!
 
 Data_path       = "Data/"
-Files_to_read   = ["AMRL_BigLakeDet_Run1.txt", "AMRLV2_BigLakeDet_Run1.txt", "AMRLV3_BigLakeDet_Run1.txt" ]
+Files_to_read   = ["AMRL_Taxi_Run1.txt", "AMRLV2_Taxi_Run1.txt", "AMRLV3_Taxi_Run1.txt" ]
 Files_legend    = ["AMRL","AMRL v2","AMRL v3" ]
 nmbr_files      = len(Files_to_read)
 
-env_name        = "Big Deterministic Lake-Environment"
+env_name        = "Taxi Environment"
+Env_fileName    = "Taxi"
 
 #########################################################
 #               Where the magic happens!
@@ -30,7 +31,7 @@ timestamp = datetime.datetime.now().strftime("%d%m%Y%H%M%S")
 
 Plot_names_title    = ["Average reward", "Average Steps", "Average Measurements", "Average Cumulative Reward"]
 Plot_Y_Label        = ["Reward", "Steps", "Measurements", "Reward (Cumulative)"]
-Plot_names_file     = ["avg_reward", "avg_steps", "avg_ms", "avg_cumrew"]
+Plot_names_file     = ["Reward", "Steps", "Measures", "cumReward"]
 
 nmbr_plots          = len(Plot_names_title)
 
@@ -76,5 +77,5 @@ for i in range (nmbr_plots):
         plt.plot(x,all_data[i][j])
 
     plt.legend(Files_legend)
-    plt.savefig("Plot_{}_{}".format(Plot_names_file[i], timestamp))
+    plt.savefig("Plot_{}_{}_{}".format(Env_fileName, Plot_names_file[i], timestamp))
     plt.clf()

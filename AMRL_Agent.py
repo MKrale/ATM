@@ -81,6 +81,8 @@ class AMRL_Agent:
                 (action,measure) = self.find_optimal_actionPair(s_current) #Choose optimal action
             else:
                 (action,measure) = self.find_nonOptimal_actionPair(s_current) #choose non-optimal action
+            if self.s_init == -1:
+                measure = 1
 
             # Update reward, Q-table and s_next
             if measure:

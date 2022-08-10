@@ -6,13 +6,16 @@ import matplotlib.pyplot as plt
 
 class AM_ENV():
 
-    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False):
+    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = 10_000, max_reward = 1):
         self.env = env
         self.StateSize = StateSize
         self.ActionSize = ActionSize    # Is there any way to get these two from the env. itself?
         self.MeasureCost = MeasureCost
         self.s_init = s_init
         self.obs = 0
+        self.max_steps = max_steps
+        self.steps_taken = 0
+        self.reward_factor = 1.0 / max_reward   # makes sure rewards are always 'normalised'
 
         self.log_choices = log_choices
         if self.log_choices:
@@ -39,6 +42,8 @@ class AM_ENV():
         # Perform action on env:
         (obs, reward, done, info) = self.env.step(action)
         self.obs = obs
+        reward = reward * self.reward_factor
+
         if done:
             self.obs = 0
 
@@ -48,6 +53,10 @@ class AM_ENV():
             #print("Warning: Logger is turned on, but not all required arguments are given. No logging will be performed.")
         elif self.log_choices:
             self.log_action(action, obs, s)
+        
+        self.steps_taken += 1
+        if self.steps_taken >= self.max_steps:
+            done = True
 
         return (reward, done)
 
@@ -56,11 +65,14 @@ class AM_ENV():
  
     def reset(self):
         self.env.reset()
+        self.steps_taken = 0
 
 
     #######################################################
     ###                 Logging Code:                   ###
     #######################################################
+
+    # Used for debugging Agents running on Frozen Lake environment.
 
     def log_action(self, action, obs, s):
 

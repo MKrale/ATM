@@ -26,6 +26,7 @@ from AMRL_variant_v3 import AMRL_v3
 from AM_Gyms.NchainEnv import NChainEnv
 from AM_Gyms.Loss_Env import Measure_Loss_Env
 from AM_Gyms.frozen_lake_v2 import FrozenLakeEnv_v2
+from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -69,10 +70,11 @@ else:
 ######################################################
 
 # Lake Envs
-s_init = 0
-MeasureCost = args.m_cost
-MeasureCost_Lake_default = 0.01
-MeasureCost_Taxi_default = 0.01
+s_init                          = 0
+MeasureCost                     = args.m_cost
+MeasureCost_LakeSmall_default   = 0.1
+MeasureCost_LakeBig_default     = 0.01
+MeasureCost_Taxi_default        = 0.01 / 20
 
 all_env_names = ["Lake_small_det", "Lake_small_nondet", "Lake_big_det", "Lake_big_nondet", "Taxi", "Chain"]
 
@@ -83,60 +85,60 @@ match env_name:
                 env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=False)
                 StateSize, ActionSize, s_init = 16,4,0
                 if MeasureCost == -1:
-                        MeasureCost = MeasureCost_Lake_default
+                        MeasureCost = MeasureCost_LakeSmall_default
                 ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init, True)
         case "Lake_small_nondet":
                 env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=True)
                 StateSize, ActionSize, s_init = 16,4,0
                 if MeasureCost == -1:
-                        MeasureCost = MeasureCost_Lake_default
+                        MeasureCost = MeasureCost_LakeSmall_default
                 ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
 
         case "Lake_big_det":
                 env = gym.make('FrozenLake-v1', map_name="8x8", is_slippery=False)
                 StateSize, ActionSize, s_init = 64,4,0
                 if MeasureCost == -1:
-                        MeasureCost = MeasureCost_Lake_default
+                        MeasureCost = MeasureCost_LakeBig_default
                 ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init, True)
         case "Lake_big_nondet":
                 env = gym.make('FrozenLake-v1', map_name="8x8", is_slippery=True)
                 StateSize, ActionSize, s_init = 64,4,0
                 if MeasureCost == -1:
-                        MeasureCost = MeasureCost_Lake_default
+                        MeasureCost = MeasureCost_LakeBig_default
                 ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
 
         case "Lake_small_nondet_v2": 
                 env = FrozenLakeEnv_v2('FrozenLake-v1', map_name="4x4", is_slippery=True)
                 StateSize, ActionSize, s_init = 16,4,0
                 if MeasureCost == -1:
-                        MeasureCost = MeasureCost_Lake_default
+                        MeasureCost = MeasureCost_LakeBig_default
                 ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
 
         case "Lake_big_nondet_v2":
                 env = FrozenLakeEnv_v2('FrozenLake-v1', map_name="8x8", is_slippery=True)
                 StateSize, ActionSize, s_init = 64,4,0
                 if MeasureCost == -1:
-                        MeasureCost = MeasureCost_Lake_default
+                        MeasureCost = MeasureCost_LakeBig_default
                 ENV = wrapper(env,StateSize,ActionSize,MeasureCost,s_init)
 
 
         case "Taxi":
                 # Does not work: I probably need to rewrite some things, particularly so that s_init is fixed (not random, as now)
-                env = gym.make('Taxi')
-                StateSize, ActionSize, s_init = 500, 4, 0
+                env = gym.make('Taxi-v3')
+                StateSize, ActionSize, s_init = 500, 6, -1
                 if MeasureCost == -1:
                         MeasureCost = MeasureCost_Taxi_default
-                ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
+                ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init, max_steps=500, max_reward = 20)
 
         case "Chain_big":
-                n=12
+                n=20
                 env = NChainEnv(n)
                 StateSize, ActionSize, s_init = n, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.05
                 ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         case "Chain_small":
-                n=5
+                n=10
                 env = NChainEnv(n)
                 StateSize, ActionSize, s_init = n, 2, 0
                 if MeasureCost == -1:
@@ -148,6 +150,13 @@ match env_name:
                 StateSize, ActionSize, s_init = 4, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.1
+                ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
+        
+        case 'Sepsis':
+                env = SepsisEnv()
+                StateSize, ActionSize, s_init = 720, 8, -1
+                if MeasureCost == -1:
+                        MeasureCost = 0.05
                 ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         
 """" 

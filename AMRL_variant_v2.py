@@ -31,9 +31,10 @@ class AMRL_v2:
 
         # Algo-specific arguments:
         self.eta, self.nmbr_particles = eta, nmbr_particles
-        self.NmbrOptimiticTries = 25
+        self.NmbrOptimiticTries = 10 #10
         self.selfLoopPenalty = 0.8
         self.lossBoost = 1
+        self.optimisticPenalty = 1
 
         self.lr = 1 # Learning rate. 
         #Currently unused: instead, Q is re-calculate each pass using Trans-table and current Q-values
@@ -44,7 +45,7 @@ class AMRL_v2:
 
     def init_run_variables(self):
         # Arrays keeping track of model:
-        self.QTable             = np.ones ( (self.StateSize, self.ActionSize) )                          # as used by algos: includes initial optimitic bias
+        self.QTable             = np.ones ( (self.StateSize, self.ActionSize) ) * self.optimisticPenalty                          # as used by algos: includes initial optimitic bias
         self.QTableUnbiased     = np.zeros( (self.StateSize, self.ActionSize) ) + 0.8                    # only includes measured Q's
         self.QTriesTable        = np.zeros ( (self.StateSize, self.ActionSize) )
         self.TransTable         = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) ) + 1/self.StateSize  # Prediction of transition probs: includes initial optimitic bias
@@ -76,8 +77,14 @@ class AMRL_v2:
     def run_episode(self):
         # Initialisation (all the s's...):
         self.init_episode_variables()
+
         s = {}
-        s[self.s_init] = 1
+        if self.s_init == -1: # Random start
+            for i in range(self.StateSize):
+                s[i] = 1.0/self.StateSize
+        else:
+            s[self.s_init] = 1
+
         s_previous = s
         s_last_measurement = self.s_init
         reward, cost, action = 0, 0, 0
@@ -138,11 +145,13 @@ class AMRL_v2:
         returnVars = (self.episodeReward, self.steps_taken, self.measurements_taken)
         return returnVars
 
-    def run(self, nmbr_episodes, get_full_results=False):
+    def run(self, nmbr_episodes, get_full_results=False, logmessages=True):
         self.init_run_variables()
         epreward,epsteps,epms = np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes))
         for i in range(nmbr_episodes):
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
+            if (i>0 and i%100 == 0 and logmessages):
+                print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]) ) )
         print(self.TransTable, self.TTriesTable, self.QTable)
         if get_full_results:
             return(self.totalReward, epreward,epsteps,epms)
@@ -211,6 +220,10 @@ class AMRL_v2:
     def has_transition_support(self, S, H):
         if len(H) == 0:
             return True
+
+        if len(S) > 0.5*self.nmbr_particles:
+            return False
+
         support = 0
         #print("Support for S={}:".format(S))
         for s in S:
@@ -306,4 +319,4 @@ class AMRL_v2:
             if self.QTriesTable[s1,action] > self.NmbrOptimiticTries:
                 self.QTable[s1,action] = totQ
             else:
-                self.QTable[s1,action] = (thisTries*totQ + (self.NmbrOptimiticTries - thisTries)) / self.NmbrOptimiticTries
+                self.QTable[s1,action] = (thisTries*totQ + self.optimisticPenalty * (self.NmbrOptimiticTries - thisTries)) / self.NmbrOptimiticTries
