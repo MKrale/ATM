@@ -27,6 +27,7 @@ from AM_Gyms.NchainEnv import NChainEnv
 from AM_Gyms.Loss_Env import Measure_Loss_Env
 from AM_Gyms.frozen_lake_v2 import FrozenLakeEnv_v2
 from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
+from AM_Gyms.Blackjack import BlackjackEnv
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -130,6 +131,14 @@ match env_name:
                         MeasureCost = MeasureCost_Taxi_default
                 ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init, max_steps=500, max_reward = 20)
 
+        case "Chain_huge":
+                n=50
+                env = NChainEnv(n)
+                StateSize, ActionSize, s_init = n, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.05
+                ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
+
         case "Chain_big":
                 n=20
                 env = NChainEnv(n)
@@ -158,6 +167,13 @@ match env_name:
                 if MeasureCost == -1:
                         MeasureCost = 0.05
                 ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
+
+        case 'Blackjack':
+                env = BlackjackEnv()
+                StateSize, ActionSize, s_init = 704, 2, -1
+                if MeasureCost ==-1:
+                        MeasureCost = 0.05
+                ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         
 """" 
 To be added: 
@@ -173,9 +189,11 @@ match algo_name:
         case "AMRL":
                 agent = amrl.AMRL_Agent(ENV)
         case "AMRL_v2":
-                agent = AMRL_v2(ENV)
+                agent = AMRL_v3(ENV, update_globally=False)       
         case "AMRL_v3":
                 agent = AMRL_v3(ENV)
+        case "AMRL_v2_old":
+                agent = AMRL_v2(ENV)
 
 """" 
 To be added: 
@@ -190,6 +208,8 @@ To be added:
 if file_name == None:
         file_name = 'AMData_{}_{}_eps={}_runs={}_t={}'.format(algo_name, env_name, nmbr_eps, nmbr_runs, datetime.datetime.now().strftime("%d%m%Y%H%M%S"))
 
+if args.m_cost == -1:
+        args.m_cost == MeasureCost
 def PR_to_data(pr_time):
         return (datetime.datetime(1970, 1, 1) + datetime.timedelta(microseconds=pr_time)).strftime("%d%m%Y%H%M%S")
 

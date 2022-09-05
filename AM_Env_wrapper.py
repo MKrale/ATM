@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 class AM_ENV():
 
-    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = 10_000, max_reward = 1):
+    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = 10_000, max_reward = 1, is_factored = True):
         self.env = env
         self.StateSize = StateSize
         self.ActionSize = ActionSize    # Is there any way to get these two from the env. itself?
@@ -16,6 +16,7 @@ class AM_ENV():
         self.max_steps = max_steps
         self.steps_taken = 0
         self.reward_factor = 1.0 / max_reward   # makes sure rewards are always 'normalised'
+        self.is_factored = is_factored
 
         self.log_choices = log_choices
         if self.log_choices:
