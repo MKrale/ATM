@@ -23,7 +23,7 @@ class AMRL_v3:
     ###     INITIALISATION AND DEFINING VARIABLES:      ###
     #######################################################
 
-    def __init__(self, env:AM_ENV, eta = 0.00, nmbr_particles = 100):
+    def __init__(self, env:AM_ENV, eta = 0.00, nmbr_particles = 100, update_globally = True):
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
@@ -37,6 +37,7 @@ class AMRL_v3:
         self.updateAccuracy = 0.0001 # = 1/100 %
         self.max_estimated_loss = self.MeasureCost
         self.optimisticPenalty = 1
+        self.update_globally = update_globally
 
         self.lr = 1 # Learning rate. 
         #Currently unused: instead, Q is re-calculate each pass using Trans-table and current Q-values
@@ -135,7 +136,8 @@ class AMRL_v3:
             if self.steps_taken % 100 == 0:
                 #print("{} steps taken in one episode: performing global update Q".format(self.steps_taken))
                 #print(s,self.QTable)
-                self.update_Q_globally()
+                if self.update_globally:
+                    self.update_Q_globally()
                 #print(self.QTable)
                 
         #print(reward,self.QTable,self.TransTable)
@@ -152,7 +154,8 @@ class AMRL_v3:
         
         if len(s_previous) <= 1:
             self.update_model(s,s_last_measurement,s_previous, H, reward, type="Q", isDone=True)
-        self.update_Q_globally()
+        if self.update_globally:
+            self.update_Q_globally()
         #print(self.QTable)
 
         # update logging variables and return
@@ -368,6 +371,7 @@ Unbiased QTable: {}
         # However, to test if this idea even works I'll just write a quick-and-dirty version for now.
 
         # Initialise (should be done throughout algo!)
+
         self.Q_max = np.max(self.QTable, axis=1)
 
         for i in range(self.StateSize):

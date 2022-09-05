@@ -5,7 +5,7 @@ import numpy as np
 class AMRL_Agent:
     '''Creates a AMRL-Agent, as described in https://arxiv.org/abs/2005.12697'''
 
-    def __init__(self,env, eta=0.05, m_bias = 0.1):
+    def __init__(self,env, eta=0.1, m_bias = 0.1):
         #load all environment-specific variables
         self.env = env
         self.StateSize, self.ActionSize, self.measureCost, self.s_init = env.get_vars()
@@ -13,6 +13,7 @@ class AMRL_Agent:
         #load all algo-specific vars (if provided)
         self.eta, self.m_bias = eta, m_bias
         self.MeasureSize = 2
+        self.init_Q = 0
 
         # Create all episode and run-specific variables
         self.reset_Run_Variables()
@@ -21,6 +22,7 @@ class AMRL_Agent:
         # Variables for one run
         self.QTable = np.zeros( (self.StateSize,self.ActionSize,self.MeasureSize) )
         self.QTable[:,:,1] = self.m_bias
+        self.QTable += self.init_Q
         self.QTriesTable = np.zeros( (self.StateSize, self.ActionSize, self.MeasureSize) )
         self.TransTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) ) + 1/self.StateSize
         self.TriesTable = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) ) 
