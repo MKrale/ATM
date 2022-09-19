@@ -5,13 +5,15 @@ import numpy as np
 class AMRL_Agent:
     '''Creates a AMRL-Agent, as described in https://arxiv.org/abs/2005.12697'''
 
-    def __init__(self,env, eta=0.1, m_bias = 0.1):
+    def __init__(self,env, eta=0.1, m_bias = 0.1, turn_greedy=False, greedy_turnpoint = 0.3):
         #load all environment-specific variables
         self.env = env
         self.StateSize, self.ActionSize, self.measureCost, self.s_init = env.get_vars()
 
         #load all algo-specific vars (if provided)
         self.eta, self.m_bias = eta, m_bias
+        self.turn_greedy, self.greedy_turnpoint = turn_greedy, greedy_turnpoint
+        self.be_greedy = False
         self.MeasureSize = 2
         self.init_Q = 0
 
@@ -77,9 +79,9 @@ class AMRL_Agent:
         '''Training algorithm of AMRL as given in paper'''
         s_current = self.s_init
         done = False
-        while not done and (self.steps_taken < 10*self.StateSize):
+        while not done:
             # Chose and take step:
-            if np.random.random(1) < 1-self.eta:
+            if np.random.random(1) < 1-self.eta or self.be_greedy :
                 (action,measure) = self.find_optimal_actionPair(s_current) #Choose optimal action
             else:
                 (action,measure) = self.find_nonOptimal_actionPair(s_current) #choose non-optimal action
@@ -113,6 +115,8 @@ class AMRL_Agent:
         rewards, steps, ms = np.zeros((nmbr_epochs)), np.zeros((nmbr_epochs)), np.zeros((nmbr_epochs))
         for i in range(nmbr_epochs):
             rewards[i], steps[i], ms[i] = self.train_epoch()
+            if self.turn_greedy and i/nmbr_epochs > self.greedy_turnpoint:
+                self.be_greedy = True
         #print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
         if get_intermediate_results:
             return (self.totalReward, rewards, steps, ms)

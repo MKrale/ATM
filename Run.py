@@ -42,7 +42,7 @@ parser = argparse.ArgumentParser("Run tests on Active Measuring Algorithms")
 
 parser.add_argument('-algo'             , default = 'AMRL',             help='Algorithm to be tested.')
 parser.add_argument('-env'              , default = 'Lake_small_det',   help='Environment on which to perform the testing')
-parser.add_argument('-m_cost'           , default = -1,                 help='Cost of measuring (default: use as specified by environment)')
+parser.add_argument('-m_cost'           , default = -1.0,                 help='Cost of measuring (default: use as specified by environment)')
 parser.add_argument('-nmbr_eps'         , default = 500,                help='nmbr of episodes per run')
 parser.add_argument('-nmbr_runs'        , default = 1,                  help='nmbr of runs to perform')
 parser.add_argument('-plot'             , default = False,              help='Automatically plot data using ... (default: False)')
@@ -53,7 +53,7 @@ parser.add_argument('-save'             , default = True,               help='Op
 args            = parser.parse_args()
 algo_name       = args.algo
 env_name        = args.env
-MeasureCost     = int(args.m_cost)
+MeasureCost     = float(args.m_cost)
 nmbr_eps        = int(args.nmbr_eps)
 nmbr_runs       = int(args.nmbr_runs)
 plot            = args.plot
@@ -71,7 +71,6 @@ else:
 
 # Lake Envs
 s_init                          = 0
-MeasureCost                     = args.m_cost
 MeasureCost_LakeSmall_default   = 0.1
 MeasureCost_LakeBig_default     = 0.01
 MeasureCost_Taxi_default        = 0.01 / 20
@@ -188,7 +187,9 @@ Possible extentions:
 # Both final names and previous/working names are implemented here
 match algo_name:
         case "AMRL":
-                agent = amrl.AMRL_Agent(ENV)
+                agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
+        case "AMRL_greedy":
+                agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
         case "AMRL_v2":
                 agent = BAM_QMDP(ENV, update_globally=False)
         case "BAM_QMDP":
