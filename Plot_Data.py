@@ -8,7 +8,7 @@ File for reading & plotting from given data files.
 
 Data_path       = "Data/Run1/"
 
-alg_names = ["AMRL", "AMRLV2", "AMRLV3"]
+alg_names = ["AMRL", "BAM-QMDP", "BAM-QMDP+"]
 env_name        = "semi-slippery frozen lake environment"
 Env_fileName    = "LakeBigNonDetv2"
 ending_filename = "Run1.txt"

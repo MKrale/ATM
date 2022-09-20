@@ -40,7 +40,7 @@ class BAM_QMDP:
         self.initPrior = 10**-6                     # Initial alpha-values, as used in the prior for T
         self.optimism_type = "RMAX+"                # RMAX+ (old), UCB, RMAX
         self.UCB_Cp = 0.3
-        self.P_noMeasureRate = 0.0
+        self.P_noMeasureRate = 0.1
         self.Q_noMeasureRate = 1
         
         self.dynamicLR = False
@@ -160,8 +160,6 @@ class BAM_QMDP:
         epreward,epsteps,epms = np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes))
         for i in range(nmbr_episodes):
             if (i > 0 and i%100 == 0 and logmessages):
-                print(self.QTable)
-                print(self.alpha)
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]) ) )
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
             
