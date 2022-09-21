@@ -17,6 +17,7 @@ import json
 import argparse
 from scipy.signal import savgol_filter
 from typing import List, Optional
+import os
 
 import AMRL_Agent as amrl
 from AM_Env_wrapper import AM_ENV as wrapper
@@ -49,9 +50,10 @@ parser.add_argument('-env_map'          , default = 'None',             help='Si
 parser.add_argument('-m_cost'           , default = -1.0,               help='Cost of measuring (default: use as specified by environment)')
 parser.add_argument('-nmbr_eps'         , default = 500,                help='nmbr of episodes per run')
 parser.add_argument('-nmbr_runs'        , default = 1,                  help='nmbr of runs to perform')
-parser.add_argument('-plot'             , default = False,              help='Automatically plot data using ... (default: False)')
 parser.add_argument('-f'                , default = None,               help='File name (default: generated automatically)')
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
+parser.add_argument('-plot'             , default = False,              help='Automatically plot data using Plot_Data.py (default: False)')
+parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 
 args            = parser.parse_args()
@@ -62,7 +64,7 @@ env_map         = args.env_map
 MeasureCost     = float(args.m_cost)
 nmbr_eps        = int(args.nmbr_eps)
 nmbr_runs       = int(args.nmbr_runs)
-plot            = args.plot
+plotRepo        = args.plot_rep
 file_name       = args.f
 rep_name        = args.rep
 
@@ -70,6 +72,11 @@ if args.save == "False" or args.save == "false":
         doSave = False
 else:
         doSave = True
+
+if args.plot == "False" or args.plot == "false":
+        makePlot = False
+else:
+        makePlot = True
         
 envFullName = env_name
 if env_map != 'None':
@@ -237,7 +244,7 @@ Possible Extentions:
 ######################################################
 
 if file_name == None:
-        file_name = 'AMData_{}_{}_eps={}_runs={}_t={}'.format(algo_name, env_name, nmbr_eps, nmbr_runs, datetime.datetime.now().strftime("%d%m%Y%H%M%S"))
+        file_name = 'AMData_{}_{}_eps={}_runs={}_t={}.json'.format(algo_name, envFullName, nmbr_eps, nmbr_runs, datetime.datetime.now().strftime("%d%m%Y%H%M%S"))
 
 if args.m_cost == -1:
         args.m_cost == MeasureCost
@@ -282,3 +289,11 @@ for i in range(nmbr_runs):
         if remake_env:
                 agent = get_agent()
 print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))
+
+if makePlot:
+        if not doSave:
+                print("Cannot plot data if not saving!")
+        else:
+                command = 'python ./Plot_Data.py -folderData {0} -folderPlots {1} -file {2}'.format( rep_name, plotRepo, file_name)
+                print (command)
+                os.system(command)

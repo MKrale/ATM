@@ -3,6 +3,21 @@ File for reading & plotting from given data files.
 
 (Only works if nmbr Steps is equal in all files!)
 """
+import argparse
+parser = argparse.ArgumentParser("Run tests on Active Measuring Algorithms")
+
+parser.add_argument('-folderData' ,     default = './Data',         help = 'Folder in which data is stored')
+parser.add_argument('-folderPlots',     default = './Final_Plots',  help = 'Folder in which plots get stored')
+parser.add_argument('-allFiles',        default = False,            help = 'Run on all files in a folder')
+parser.add_argument('-makeFolders',     default = False,            help = 'make new subfolder(s) for plots of file(s)')
+parser.add_argument('-file',            default = "None",           help = 'File with data to be plotted')
+
+args = parser.parse_args()
+Data_path = args.folderData
+Plots_path = args.folderPlots
+allFiles = args.allFiles
+fileName = args.file
+
 
 # To be filled in!
 

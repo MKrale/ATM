@@ -24,6 +24,9 @@ class BAM_QMDP:
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
+        
+        self.StateSize = self.StateSize + 1         # Adding a Done-state
+        self.doneState = self.StateSize -1
 
         # Meta-variables:
         self.eta = eta                              # Chance of picking a non-greedy action (should be called epsilon...)
@@ -37,10 +40,10 @@ class BAM_QMDP:
         self.optimisticPenalty = 1                  # Maximum return estimate (Rewards in all environments are normalised such that this is always 1)
         self.update_globally = update_globally      # Boolean to distinguish between BAM-QMDP (without global Q-update, False) and BAM-QMDP+ (with global Q-update, True)
 
-        self.initPrior = 10**-6                     # Initial alpha-values, as used in the prior for T
+        self.initPrior = 1/self.StateSize                     # Initial alpha-values, as used in the prior for T
         self.optimism_type = "RMAX+"                # RMAX+ (old), UCB, RMAX
         self.UCB_Cp = 0.3
-        self.P_noMeasureRate = 0.1
+        self.P_noMeasureRate = 0.4
         self.Q_noMeasureRate = 1
         
         self.dynamicLR = False
@@ -53,12 +56,12 @@ class BAM_QMDP:
         "Initialises all variables that should be reset each run."
         # Arrays keeping track of model:
         self.QTable             = np.ones ( (self.StateSize, self.ActionSize), dtype=np.longfloat ) * self.optimisticPenalty    # Q-table as used by other functions, includes initial bias
+        self.QTable[self.doneState] = 0
         self.QTableUnbiased     = np.zeros( (self.StateSize, self.ActionSize), dtype=np.longfloat )                             # Q-table based solely on experience (unbiased)
         self.QTriesTable        = np.zeros( (self.StateSize, self.ActionSize) )                                                 # Tallies how often (s,a) has been visited (called N_q in paper)
         self.QTableRewards      = np.zeros( (self.StateSize, self.ActionSize) )                                                 # Record average immidiate reward for (s,a) (called \hat{R} in report)
         self.Q_max              = np.zeros( (self.StateSize), dtype=np.longfloat)                                               # Q-value of optimal action as given by Q (used for readability)
         self.alpha              = np.ones( (self.StateSize, self.ActionSize, self.StateSize) ) * self.initPrior# Alpha-values used for dirichlet-distributions.
-        self.wasLast            = np.zeros( (self.StateSize, self.ActionSize) )
         self.ChangedStates      = {}
         self.T                  = np.zeros((self.StateSize, self.ActionSize, self.StateSize), dtype=np.longfloat) # States to be checked in global Q update
         # Other vars:
@@ -155,14 +158,15 @@ class BAM_QMDP:
         return returnVars
 
     def run(self, nmbr_episodes, get_full_results=False, print_info = True, logmessages = True):
-        "Performes the specified number of episodes of BAM-QMDP."
+        "Performs the specified number of episodes of BAM-QMDP."
         self.init_run_variables()
         epreward,epsteps,epms = np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes))
         for i in range(nmbr_episodes):
             if (i > 0 and i%100 == 0 and logmessages):
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]) ) )
+                #print(self.T)
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
-            
+                
         if print_info:
             print("""
 Run complete: 
@@ -222,28 +226,28 @@ Unbiased QTable: {}
             print("Average samples not implemented yet!")
         return self.dirichlet_approx(alpha = self.alpha[s,action], nmbr_samples = 1)
 
-    def sample_T_full(self, nmbr_samples = 10 , excludeDones = False): # make nmbr samples global?
+    def sample_T_full(self, nmbr_samples = 10): # make nmbr samples global?
         T = np.zeros((self.StateSize, self.ActionSize, self.StateSize))
-        DoneFact = 0
-        
-        
         for s in range(self.StateSize):
             for a in range(self.ActionSize):
-                if excludeDones:
-                    DoneFact = 0
-                    if self.wasLast[s,a] > 0:
-                        DoneFact =  self.wasLast[s,a] / (np.sum(self.alpha[s,a]) + self.wasLast[s,a]+ 0.1)
-                T[s,a] = np.average(self.dirichlet_approx(self.alpha[s,a], nmbr_samples, DoneFact=DoneFact), axis=0)      
+                T[s,a] = np.average(self.dirichlet_approx(self.alpha[s,a], nmbr_samples), axis=0)      
         return T
     
-    def dirichlet_approx(self, alpha, nmbr_samples = 1, accuracy = 0.01, DoneFact = 0):
+    def accuracy(self, alpha):
+        return (np.sum(alpha)*5)/(self.NmbrOptimiticTries*self.StateSize)
+    
+    def dirichlet_approx(self, alpha, nmbr_samples = 1, accuracy = -1):
         lenAlpha = len(alpha)
         distr = np.zeros((nmbr_samples, lenAlpha), dtype=np.longfloat)
+        if accuracy == -1:
+            accuracy = self.accuracy(alpha)
         
-        # Check which values > accuracy
+        # Check which values > accuracy, and so have to be sampled
         to_check = np.arange(lenAlpha)[alpha > accuracy]
+        # If all are too small, just return an equal distribution over all states:
         if len(to_check) < 1:
             distr = np.ones((nmbr_samples, lenAlpha)) / lenAlpha
+        # For all samples i, sample values for all elements j
         else:
             i=0
             while i < nmbr_samples:
@@ -251,11 +255,11 @@ Unbiased QTable: {}
                 for j in to_check:
                     distr[i,j] = np.random.standard_gamma(alpha[j])
                     totalDist += distr[i,j]
+                # Normalise sample i according to total of samples
                 if totalDist > 0:
                     distr[i] = distr[i]/totalDist
                     i += 1
-        if DoneFact > 0:
-            distr = distr *(1-DoneFact)                
+        # Numpy is difficult sometimes....             
         if nmbr_samples == 1:
             return distr[0]
         return distr
@@ -332,18 +336,20 @@ Unbiased QTable: {}
             for s1 in S1:
                 # Unpack some variables
                 p1 = S1[s1]
-                if isDone:
-                    self.wasLast[s1,action] += p1
-                else:
-                    thisAlpha = np.zeros(self.StateSize)
+                thisAlpha = np.zeros(self.StateSize)
 
+                if isDone:
+                    thisAlpha[self.doneState] += p1
+                else:
                     for s2 in S2:
                         thisAlpha[s2] += p1*S2[s2]
-                    
-                    if len(S2) == 1:
-                        self.alpha[s1,action] += thisAlpha
-                    else:
-                        alpha_norm = np.sum(self.alpha[s1,action]-self.initPrior)
+                
+                if len(S2) == 1:
+                    self.alpha[s1,action] += thisAlpha
+                else:
+                    alpha_filtered = np.copy(self.alpha[s1,action]) [self.alpha[s1,action] > self.accuracy(self.alpha[s1,action])]
+                    alpha_norm = np.sum(alpha_filtered)
+                    if alpha_norm > 0:
                         alpha_unbiased_norm = (self.alpha[s1,action]-self.initPrior) / alpha_norm
                         self.alpha[s1,action] += self.P_noMeasureRate / m.log(self.totalSteps+10) * alpha_unbiased_norm
         return
@@ -415,7 +421,7 @@ Unbiased QTable: {}
             self.ChangedStates[i] = self.Q_max[i] # Array with all states to be checked for updates
         
         # Sample T from distribution:
-        self.T = self.sample_T_full(excludeDones=True)
+        self.T = self.sample_T_full()
         i = 0
         
         # Reset all Q-values to reward + optimism
