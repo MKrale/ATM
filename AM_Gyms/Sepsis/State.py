@@ -17,7 +17,7 @@ class State(object):
     def __init__(self,
             state_idx = None, idx_type = 'obs',
             diabetic_idx = None, state_categs = None):
-
+        
         assert state_idx is not None or state_categs is not None
         assert ((diabetic_idx is not None and diabetic_idx in [0, 1]) or
                 (state_idx is not None and idx_type == 'full'))

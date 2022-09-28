@@ -45,6 +45,7 @@ class BAM_QMDP:
         self.UCB_Cp = 0.3
         self.P_noMeasureRate = 0.4
         self.Q_noMeasureRate = 1
+        self.use_exp = False
         
         self.dynamicLR = False
         self.lr = 0.1                               # Learning rate, as used in standard Q updates. Currently unused, since we use a dynamic learning rate
@@ -209,7 +210,6 @@ Unbiased QTable: {}
         array = np.array(list(S.items()))
         return array[:,0], array[:,1] #states, then probs
        
-    
     def _dict_to_particles_(self, S):
         states, probs = self._dict_to_arrays_(S)
         particles = []
@@ -222,6 +222,8 @@ Unbiased QTable: {}
         return particles
     
     def sample_T(self,s, action, nmbr=1):
+        if self.use_exp:
+            return self.alpha[s,action]/np.sum(self.alpha[s,action])
         if nmbr != 1:
             print("Average samples not implemented yet!")
         return self.dirichlet_approx(alpha = self.alpha[s,action], nmbr_samples = 1)
@@ -230,7 +232,10 @@ Unbiased QTable: {}
         T = np.zeros((self.StateSize, self.ActionSize, self.StateSize))
         for s in range(self.StateSize):
             for a in range(self.ActionSize):
-                T[s,a] = np.average(self.dirichlet_approx(self.alpha[s,a], nmbr_samples), axis=0)      
+                if self.use_exp:
+                    T[s,a] = self.alpha[s,a]/np.sum(self.alpha[s,a])
+                else:
+                    T[s,a] = np.average(self.dirichlet_approx(self.alpha[s,a], nmbr_samples), axis=0)      
         return T
     
     def accuracy(self, alpha):

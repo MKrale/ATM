@@ -22,7 +22,10 @@ import os
 import AMRL_Agent as amrl
 from AM_Env_wrapper import AM_ENV as wrapper
 from AM_Env_wrapper import AM_Visualiser as visualiser
+from ACNO_generalised.ACNO_ENV import ACNO_ENV
+
 from BAM_QMDP import BAM_QMDP
+from ACNO_generalised.ACNO_Agent import ACNO_Agent
 
 from AM_Gyms.NchainEnv import NChainEnv
 from AM_Gyms.Loss_Env import Measure_Loss_Env
@@ -111,39 +114,39 @@ def get_env():
                                 MeasureCost = MeasureCost_Lake_default
                         match env_map:
                                 case 'None':
-                                        stateSize = 4**2
+                                        StateSize = 4**2
                                         map_name = "4x4"
                                         desc = None
                                 case "standard4":
-                                        stateSize = 4**2
+                                        StateSize = 4**2
                                         map_name = "4x4"
                                         desc = None
                                 case "standard8":
-                                        stateSize = 8**2
+                                        StateSize = 8**2
                                         map_name = "8x8"
                                         desc = None
                                 case "random4":
-                                        stateSize = 4**2
+                                        StateSize = 4**2
                                         map_name = None
                                         desc = generate_random_map(size=4)
                                 case "random8":
-                                        stateSize = 8**2
+                                        StateSize = 8**2
                                         map_name = None
                                         desc = generate_random_map(size=8)
                                 case "random12":
-                                        stateSize = 12**2
+                                        StateSize = 12**2
                                         map_name = None
                                         desc = generate_random_map(size=12)
                                 case "random16":
-                                        stateSize = 16**2
+                                        StateSize = 16**2
                                         map_name = None
                                         desc = generate_random_map(size=16)
                                 case "random 24":
-                                        stateSize = 24**2
+                                        StateSize = 24**2
                                         map_name = None
                                         desc = generate_random_map(size=24)
                                 case "random 32":
-                                        stateSize = 32**2
+                                        StateSize = 32**2
                                         map_name = None
                                         desc = generate_random_map(size=32)
                                 case other:
@@ -160,15 +163,13 @@ def get_env():
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=True)
                                 case "semi-slippery":
                                         env = FrozenLakeEnv_v2(desc=desc, map_name=map_name)
-                        print (stateSize, ActionSize, s_init)
-                        ENV = wrapper(env, stateSize, ActionSize, MeasureCost, s_init)
+                        
                                         
                 case "Taxi":
                         env = gym.make('Taxi-v3')
                         StateSize, ActionSize, s_init = 500, 6, -1
                         if MeasureCost == -1:
                                 MeasureCost = MeasureCost_Taxi_default
-                        ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init, max_steps=500, max_reward = 20)
 
                 case "Chain":
                         match env_map:
@@ -184,29 +185,26 @@ def get_env():
                         ActionSize, s_init = 2, 0
                         if MeasureCost == -1:
                                 MeasureCost = MeasureCost_Chain_default
-                        ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
 
                 case "Loss":
                         env = Measure_Loss_Env()
                         StateSize, ActionSize, s_init = 4, 2, 0
                         if MeasureCost == -1:
                                 MeasureCost = 0.1
-                        ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
                 
                 case 'Sepsis':
                         env = SepsisEnv()
                         StateSize, ActionSize, s_init = 720, 8, -1
                         if MeasureCost == -1:
                                 MeasureCost = 0.05
-                        ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
 
                 case 'Blackjack':
                         env = BlackjackEnv()
                         StateSize, ActionSize, s_init = 704, 2, -1
                         if MeasureCost ==-1:
                                 MeasureCost = 0.05
-                        ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
-                
+        
+        ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         return ENV
         """" 
         Possible extentions: 
@@ -230,6 +228,9 @@ def get_agent():
                         agent = BAM_QMDP(ENV, update_globally=False)
                 case "BAM_QMDP+":
                         agent = BAM_QMDP(ENV)
+                case "ACNO_POMCP":
+                        ENV_ACNO = ACNO_ENV(ENV)
+                        agent = ACNO_Agent(ENV_ACNO)
         return agent
 
 """" 

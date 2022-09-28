@@ -5,6 +5,11 @@ import matplotlib.pyplot as plt
 
 
 class AM_ENV():
+    """Wrapper class for openAI-environments for AM algorithms.
+    
+    Most imporantly, changes step-function to not return an observation,
+    and adds a seperate observe-function.
+    """
 
     def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = 10_000, max_reward = 1, is_factored = True):
         self.env = env
@@ -40,7 +45,7 @@ class AM_ENV():
         return self.step(action)
     
     def step(self, action, s = None):
-        # Perform action on env:
+        "Perform action on environment, without returning an observation"
         (obs, reward, done, info) = self.env.step(action)
         self.obs = obs
         reward = reward * self.reward_factor
@@ -62,6 +67,7 @@ class AM_ENV():
         return (reward, done)
 
     def measure(self): #For full version should include m as argument
+        'Returns current state of environment'
         return (self.obs, self.MeasureCost)
  
     def reset(self):
@@ -86,6 +92,8 @@ class AM_ENV():
 
 
 class AM_Visualiser(): # Assuming a grid!
+    """Class for visualising results on Frozen Lake environments.
+    Used for testing only, would not recommend using!"""
 
     # Winter: Blue  = low, green = high
 
