@@ -176,7 +176,7 @@ class BeliefTreeSolver(Solver):
             action_node = self.belief_tree_index.action_map.get_action_node(step_result.action)
             if action_node is None:
                 # I grabbed a child belief node that doesn't have an action node. Use rollout from here on out.
-                console(2, module, "Reached branch with no leaf nodes, using random rollout to finish the episode")
+                #console(2, module, "Reached branch with no leaf nodes, using random rollout to finish the episode")
                 self.disable_tree = True
                 return
 

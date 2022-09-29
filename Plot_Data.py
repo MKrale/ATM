@@ -1,5 +1,5 @@
 """
-File for reading & plotting from given data files.
+File for reading & plotting from given data files. (To be reworked!)
 
 (Only works if nmbr Steps is equal in all files!)
 """

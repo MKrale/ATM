@@ -1,8 +1,6 @@
 import math
 import random
 import numpy as np
-import sys
-sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-QMDP/ACNO_generalised")
 import pickle
 from pomdpy.discrete_pomdp import DiscreteActionPool, DiscreteObservationPool
 from pomdpy.discrete_pomdp import DiscreteAction
@@ -11,6 +9,7 @@ from pomdpy.discrete_pomdp import DiscreteObservation
 from pomdpy.pomdp import HistoricalData
 from pomdpy.pomdp import Model, StepResult
 from pomdpy.util import console, config_parser
+from AM_Env_wrapper import AM_ENV
 import time
 
 debug_mode = False
@@ -112,12 +111,16 @@ class BoxObservation(DiscreteObservation):
         pass
 
 class ACNO_ENV():
-    '''Generalised verion of the ACNO-environment written in ...'''
-    def __init__(self, env, missing=True, cost=-0, is_mdp=0):
+    '''
+    Generalised verion of the ACNO-environment from https://github.com/nam630/acno_mdp .
+    Acts as wrapper around AM_ENV class for ACNO-POMCP agent.
+    '''
+    def __init__(self, env:AM_ENV, missing=True, cost=-0, is_mdp=0):
         
         # get variables from openAI env
         self.sim = env
         self.states_n, self.actions_n, self.cost, self.init_state = env.get_vars()
+        self.cost = - self.cost
         self.actions_n = self.actions_n * 2
         self.c_actions = self.actions_n // 2
 
@@ -125,18 +128,17 @@ class ACNO_ENV():
         self.missing = bool(is_mdp==0)
         if self.missing:
             self.na = self.states_n # TODO: check if this works!
-        self.cost = cost # this is not correct...
-        self.max_steps = 500 
+        self.max_steps = 1000 
         self.t = 0
         self.seed = random.seed() 
-        self.n_start_states = 2000
+        self.n_start_states = 1
         self.ucb_coefficient = 3.0
-        self.min_particle_count = 1000
-        self.max_particle_count = 2000
+        self.min_particle_count = 80
+        self.max_particle_count = 120
         self.max_depth = 5
         self.action_selection_timeout = 60
         self.particle_selection_timeout = 0.2
-        self.n_sims = 5000 # same as default params in pomcpy.py
+        self.n_sims = 100 # same as default params in pomcpy.py
         if is_mdp == 0:
             self.solver = 'POMCP'
         else:
@@ -148,9 +150,9 @@ class ACNO_ENV():
         self.epsilon_minimum = 0.1
         self.epsilon_decay = 0.9
         self.discount = 0.7
-        self.n_epochs = 25000
+        self.n_epochs = 500
         self.save = False
-        self.timeout = 7200000
+        self.timeout = 7_200_000
         
         # starts with an empty model 
         self.t_estimates = np.zeros((self.states_n, self.actions_n, self.states_n))
@@ -185,10 +187,13 @@ class ACNO_ENV():
     def reset(self):
         self.t = 0
 
-    '''
-    Use rejection sampling to generate a new set of belief particles (from prev_particles to particles)
-    '''
+    
     def generate_particles(self, prev_belief, action, obs, n_particles, prev_particles, mdp):
+        '''
+        Samples a new set of belief particles, according to previous belief and action.
+        Sampling implemented using generate_step function.
+        '''
+        #Initialisation
         particles = []
         action_node = prev_belief.action_map.get_action_node(action)
         if action_node is None:
@@ -198,8 +203,12 @@ class ACNO_ENV():
         child_node = obs_map.get_belief(obs)
         start = time.time()
         
+        ### MODEL-BASED SAMPLING ###
+        
         while particles.__len__() < n_particles:
+            # Chose random current state
             state = random.choice(prev_particles)
+            # Sample a sucessor
             if mdp:
                 result, is_legal = self.generate_step(state, action, is_mdp=True)
             else:
@@ -214,6 +223,7 @@ class ACNO_ENV():
                     pass
                     #print(particles.__len__(), time.time() - start)
             
+            #  Break if particle selection takes too long
             if time.time() - start > self.particle_selection_timeout:
                 if obs.position != self.states_n:
                     pass
@@ -224,6 +234,9 @@ class ACNO_ENV():
                     #print('REJECTION timeout:', time.time() - start)
                     break
         
+        ### EXPANDING SAMPLE ###
+        
+        # If timed for real sampling, expand our current sample instead
         while particles.__len__() < n_particles:
             state = random.choice(particles)
             new_state = state.copy()
@@ -238,15 +251,8 @@ class ACNO_ENV():
     2) exact noise level
     '''
     def empirical_simulate(self, state, action):
+        """Estimates the next state and reward, using exisiting model."""
         action = action % self.c_actions
-        # if debug_mode:
-        #     if (state, action) in self.empi_model.keys():
-        #         p = self.empi_model[(state, action)]
-        #         p /= sum(p)
-        #         next_state = np.random.choice(self.states_n, 1, p=p)[0] # sample according to probs
-        #     else:
-        #         next_state = np.random.randint(0, self.states_n, 1)[0] # random sample
-        # else:
         p = self.t_estimates[state,action,:]
         next_state = np.random.choice(self.states_n, 1, p=p)[0] # sample according to probs
         rew = self.r_estimates[state, action]
@@ -255,29 +261,8 @@ class ACNO_ENV():
         terminal = False
         return BoxState(int(next_state), is_terminal=terminal, r=rew), True
 
-
-    '''
-    In the real env, observation = state \cup NA
-    but always return TRUE
-    '''
-    
-    # TODO: check if this function needs to exist!
-    
-    # def take_real_state(self, state, action):
-    #     if state.terminal:
-    #         return state.copy(), False
-    #     if type(action) is not int:
-    #         action = action.bin_number
-    #     if type(state) is not int:
-    #         state = state.position
-    #     temp = SepsisEnv(init_state=state) 
-    #     temp.env.state.set_state_by_idx(state, idx_type='obs', diabetic_idx=0)
-    #     next_state, rew, done, info = temp.step(action % 8, state)
-    #     state = info['true_state'] 
-    #     self.real_state = state
-    #     return BoxState(int(state), is_terminal=done, r=rew), True
-
     def take_real_step(self, action):
+        '''Takes specified action in environment, returns next state and reward.'''
         if type(action) is not int:
             action = action.bin_number
         (ac, ao) = action % self.c_actions, action // self.c_actions
@@ -286,10 +271,8 @@ class ACNO_ENV():
         self.real_state = obs
         return BoxState(obs, is_terminal=done, r=reward), True
 
-    '''
-    Should always return the predicted/underlying state
-    '''
     def make_next_position(self, state, action):
+        '''Returns next state as sampled by current model'''
         if type(action) is not int:
             action = action.bin_number
         if type(state) is not int:
@@ -301,10 +284,8 @@ class ACNO_ENV():
         for i in range(self.obs_n):
             obs[i] = i
 
-    '''
-    Should return observation based on action
-    '''
     def make_observation(self, action, next_state, always_obs=False):
+        '''Returns observation if measuring, NA otherwise'''
         if action.bin_number < self.actions_n // 2 or always_obs:
             obs = next_state.position # not observe
         else:
@@ -312,6 +293,7 @@ class ACNO_ENV():
         return BoxObservation(obs)
         
     def make_reward(self, state, action, next_state, is_legal, always_obs=False):
+        '''Returns costed reward'''
         rew = 0
         if not is_legal:
             return rew

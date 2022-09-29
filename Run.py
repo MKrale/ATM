@@ -1,5 +1,6 @@
 '''
 File for running & gathering data on Active-Measuring algorithms.
+For a brief description of how to use it, see the Readme-file in this repo.
 
 '''
 
@@ -7,6 +8,11 @@ File for running & gathering data on Active-Measuring algorithms.
         ###             Imports                 ###
 ######################################################
 
+# File structure stuff
+import sys
+sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-QMDP/ACNO_generalised")
+
+# External modules
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
@@ -19,14 +25,12 @@ from scipy.signal import savgol_filter
 from typing import List, Optional
 import os
 
+# Agents
 import AMRL_Agent as amrl
-from AM_Env_wrapper import AM_ENV as wrapper
-from AM_Env_wrapper import AM_Visualiser as visualiser
-from ACNO_generalised.ACNO_ENV import ACNO_ENV
-
 from BAM_QMDP import BAM_QMDP
 from ACNO_generalised.ACNO_Agent import ACNO_Agent
 
+# Environments
 from AM_Gyms.NchainEnv import NChainEnv
 from AM_Gyms.Loss_Env import Measure_Loss_Env
 from AM_Gyms.frozen_lake_v2 import FrozenLakeEnv_v2
@@ -34,6 +38,12 @@ from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
 from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 
+# Environment wrappers
+from AM_Env_wrapper import AM_ENV as wrapper
+from AM_Env_wrapper import AM_Visualiser as visualiser
+from ACNO_generalised.ACNO_ENV import ACNO_ENV
+
+# JSON encoder
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
@@ -44,11 +54,11 @@ class NumpyEncoder(json.JSONEncoder):
         ###       Parsing Arguments           ###
 ######################################################
 
-parser = argparse.ArgumentParser("Run tests on Active Measuring Algorithms")
+parser = argparse.ArgumentParser(description="Run tests on Active Measuring Algorithms")
 
 parser.add_argument('-algo'             , default = 'AMRL',             help='Algorithm to be tested.')
 parser.add_argument('-env'              , default = 'Lake_small_det',   help='Environment on which to perform the testing')
-parser.add_argument('-env_var'          , default = 'None',             help='Variant of the environment to use (if applicable')
+parser.add_argument('-env_var'          , default = 'None',             help='Variant of the environment to use (if applicable)')
 parser.add_argument('-env_map'          , default = 'None',             help='Size of the environment to use (if applicable)')
 parser.add_argument('-m_cost'           , default = -1.0,               help='Cost of measuring (default: use as specified by environment)')
 parser.add_argument('-nmbr_eps'         , default = 500,                help='nmbr of episodes per run')
@@ -98,11 +108,6 @@ MeasureCost_Taxi_default        = 0.01 / 20
 MeasureCost_Chain_default       = 0.05
 remake_env                      = False
 
-all_env_names = [
-"Lake_small_det", "Lake_small_nondet", "Lake_small_nondet_v2",
-"Lake_big_det", "Lake_big_nondet", "Lake_big_nondet_v2",
- "Chain_small", "Chain_big", "Chain_huge",
- "Loss", "Taxi", "Sepsis", "Blackjack"]
 def get_env():
         global MeasureCost
         global remake_env
