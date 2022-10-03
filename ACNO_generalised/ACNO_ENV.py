@@ -131,11 +131,11 @@ class ACNO_ENV():
         self.max_steps = 1000 
         self.t = 0
         self.seed = random.seed() 
-        self.n_start_states = 1
-        self.ucb_coefficient = 3.0
+        self.n_start_states = 100
+        self.ucb_coefficient = 2.0
         self.min_particle_count = 80
         self.max_particle_count = 120
-        self.max_depth = 5
+        self.max_depth = 20
         self.action_selection_timeout = 60
         self.particle_selection_timeout = 0.2
         self.n_sims = 100 # same as default params in pomcpy.py
@@ -144,12 +144,12 @@ class ACNO_ENV():
         else:
             self.solver = 'MCP'
         #print('Solving with ', self.solver)
-        self.preferred_actions = True # not used
+        self.preferred_actions = False # not used
         self.test = 10
-        self.epsilon_start = 0.9
+        self.epsilon_start = 0.1
         self.epsilon_minimum = 0.1
         self.epsilon_decay = 0.9
-        self.discount = 0.7
+        self.discount = 0.99
         self.n_epochs = 500
         self.save = False
         self.timeout = 7_200_000
@@ -158,10 +158,12 @@ class ACNO_ENV():
         self.t_estimates = np.zeros((self.states_n, self.actions_n, self.states_n))
         self.r_estimates = np.zeros((self.states_n, self.actions_n))
         
-        # use a prior of 1 for all (s, a, s') 
-        self.n_counts = np.ones((self.states_n, self.actions_n)) * self.states_n
+        # use a prior of 1/nmbr_states for all (s, a, s') 
+        self.n_counts = np.ones((self.states_n, self.actions_n))
         self.r_counts = np.zeros((self.states_n, self.actions_n))
-        self.t_counts = np.ones((self.states_n, self.actions_n, self.states_n))
+        self.t_counts = np.ones((self.states_n, self.actions_n, self.states_n)) / self.states_n
+        
+        self.done_penalty = 0.1
 
     def update(self, step_result):
         pass
@@ -267,8 +269,12 @@ class ACNO_ENV():
             action = action.bin_number
         (ac, ao) = action % self.c_actions, action // self.c_actions
         reward, done = self.sim.step(ac)
+        if reward > 0:
+            print("Reward! {}".format(reward))
         (obs, measureCost) = self.sim.measure()
         self.real_state = obs
+        if done:
+            pass
         return BoxState(obs, is_terminal=done, r=reward), True
 
     def make_next_position(self, state, action):
@@ -299,6 +305,8 @@ class ACNO_ENV():
             return rew
         if action.bin_number < self.actions_n // 2 or always_obs:
             rew = rew + self.cost
+            if next_state.terminal and rew <=0:
+                rew -= self.done_penalty
         rew += next_state.final_rew
         return rew
 

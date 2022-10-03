@@ -90,7 +90,8 @@ if args.plot == "False" or args.plot == "false":
         makePlot = False
 else:
         makePlot = True
-        
+
+# Create name for Data file
 envFullName = env_name
 if env_map != 'None':
         envFullName += env_map
@@ -160,14 +161,14 @@ def get_env():
                         if map_name != None:
                                 remake_env = True
                         match env_variant:
-                                case 'None': #default = deterministic
-                                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                                 case "det":
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                                 case "slippery":
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=True)
                                 case "semi-slippery":
                                         env = FrozenLakeEnv_v2(desc=desc, map_name=map_name)
+                                case other: #default = deterministic
+                                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                         
                                         
                 case "Taxi":
@@ -178,14 +179,15 @@ def get_env():
 
                 case "Chain":
                         match env_map:
-                                case 'None':
-                                        StateSize = 20
                                 case '10':
                                         StateSize = 10
                                 case '20':
                                         StateSize = 20
                                 case '30':
                                         StateSize = 30
+                                case other: # default
+                                        StateSize = 20
+                                
                         env = NChainEnv(StateSize)
                         ActionSize, s_init = 2, 0
                         if MeasureCost == -1:
@@ -208,6 +210,11 @@ def get_env():
                         StateSize, ActionSize, s_init = 704, 2, -1
                         if MeasureCost ==-1:
                                 MeasureCost = 0.05
+                
+                case other:
+                        print("Environment not recognised, please try again!")
+                        return
+                        
         
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         return ENV
@@ -236,6 +243,8 @@ def get_agent():
                 case "ACNO_POMCP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent(ENV_ACNO)
+                case other:
+                        print("Agent not recognised, please try again!")
         return agent
 
 """" 

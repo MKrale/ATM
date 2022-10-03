@@ -68,7 +68,7 @@ class ACNO_Agent:
         temp = None
         self.model.reset_for_epoch()
         for i in range(epochs):
-            # Reset the epoch stats
+            # Reset the epoch stats3
             start = time.time()
             self.results = Results()
             if self.model.solver == 'POMCP' or self.model.solver == 'MCP':
@@ -105,7 +105,8 @@ class ACNO_Agent:
         # Import previous model variables
         old_t = self.model.t_counts # StateSize x CActionSize x StateSize
         old_r = self.model.r_counts # StateSize x CActionSize
-        old_n = np.maximum(self.model.n_counts, np.ones(old_r.shape)) # StateSize x CActionSize
+        old_n = self.model.n_counts
+        #old_n = np.maximum(self.model.n_counts, np.ones(old_r.shape)) # StateSize x CActionSize
         
         # Periodic logging:
         if not observe_then_plan and (epoch % 100 == 0):
@@ -154,9 +155,18 @@ class ACNO_Agent:
                 if past_obs != self.model.states_n : 
                     # Update model counters
                     #print("Learning!")
-                    self.model.n_counts[past_obs, action.bin_number] += 1
-                    self.model.r_counts[past_obs, action.bin_number] += step_result.reward
-                    self.model.t_counts[past_obs, action.bin_number, step_result.observation.position] += 1
+                   # print((past_obs, action.bin_number % self.model.c_actions, step_result.observation.position))
+                    self.model.n_counts[past_obs, action.bin_number % self.model.c_actions] += 1
+                    #print(self.model.n_counts)
+                    self.model.r_counts[past_obs, action.bin_number % self.model.c_actions] += step_result.reward
+                    self.model.t_counts[past_obs, action.bin_number % self.model.c_actions, step_result.observation.position] += 1
+                    
+                    self.model.n_counts[past_obs, action.bin_number + self.model.c_actions] += 1
+                    self.model.r_counts[past_obs, action.bin_number + self.model.c_actions] += step_result.reward # - self.model.cost #we don't pay measure cost when not measuring
+                    self.model.t_counts[past_obs, action.bin_number + self.model.c_actions, step_result.observation.position] += 1
+                    
+                    solver.model.t_estimates = self.model.t_counts / self.model.n_counts[:,:,np.newaxis]
+                    solver.model.r_estimates = self.model.r_counts / self.model.n_counts
             
             # Update variables
             discounted_reward += discount * (step_result.reward)
@@ -171,8 +181,11 @@ class ACNO_Agent:
                 eps *= self.model.epsilon_decay
             
             # Update solver & history
-            if not step_result.is_terminal or not is_legal:
-                solver.update(step_result)
+            # if not step_result.is_terminal or not is_legal:
+            #     solver.update(step_result)
+                
+            solver.update(step_result)
+            
             new_hist_entry = solver.history.add_entry()
             HistoryEntry.update_history_entry(new_hist_entry, step_result.reward, step_result.action, step_result.observation, step_result.next_state)
             
@@ -204,6 +217,9 @@ class ACNO_Agent:
         # print_divider('medium')
         # print(discounted_reward)
         # print(i)
+        mask = self.model.r_counts[self.model.r_counts>0]
+        #print(self.model.r_counts, self.model.n_counts, self.model.r_estimates)
+
         return reward, i, nmbr_measurements, eps, discounted_reward, temp
 
     @staticmethod
