@@ -7,6 +7,7 @@ from pomdpy.pomdp.history import Histories, HistoryEntry
 from pomdpy.util import console, print_divider
 from pomdpy.solvers.pomcp import POMCP
 # from experiments.scripts.pickle_wrapper import save_pkl
+from ACNO_ENV import ACNO_ENV
 import numpy as np
 
 module = "agent"
@@ -37,7 +38,7 @@ class ACNO_Agent:
 
     """
 
-    def __init__(self, model, is_mdp=False):
+    def __init__(self, model:ACNO_ENV, is_mdp=False):
         """
         Initialize the POMDPY agent
         :param model:
