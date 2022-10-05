@@ -11,7 +11,7 @@ class ACNO_Agent:
     def __init__(self, env=ACNO_ENV):
         self.model = env
         
-        self.explore_episodes = 3000
+        self.explore_episodes = 2000
         self.max_steps = 1000
         
         # Variables needed for POMCP
@@ -29,7 +29,6 @@ class ACNO_Agent:
         
         # Declare variables
         rewards, steps, measurements = np.zeros(nmbr_episodes), np.zeros(nmbr_episodes), np.zeros(nmbr_episodes)
-        self.model.n_sims = nmbr_episodes
         
         # Run exploration phase
         exp_eps = self.explore_episodes #readibilty re-define
@@ -47,6 +46,7 @@ class ACNO_Agent:
     def run_episode(self, epoch):
         
         # Remake solver & reset env
+        self.histories = Histories() #maybe this reset helps?
         self.model.reset_for_epoch()
         solver = self.solver_factory(self)
         
@@ -67,7 +67,8 @@ class ACNO_Agent:
             
             # Update solver & history
             stepResult = self.model.to_StepResult(action, obs, obs, reward, done)
-            solver.update(stepResult)
+            if not done:
+                solver.update(stepResult)
             
             new_hist_entry = solver.history.add_entry()
             HistoryEntry.update_history_entry(new_hist_entry, reward, action, obs, obs)

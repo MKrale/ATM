@@ -72,6 +72,9 @@ class BoxAction(DiscreteAction):
 
     def __eq(self, other_action):
         return self.bin_number == other_action.bin_number
+    
+    def __ge__(self, other_action):
+        return self.bin_number > other_action.bin_number
 
     def print_action(self):
         pass
@@ -134,7 +137,10 @@ class ACNO_ENV():
         self.StateSize, self.CActionSize, self.cost, self.s_init = env.get_vars()
         self.StateSize += 1
         self.ActionSize = self.CActionSize * 2  #both measuring & non-measuring actions
-        self.EmptyObservation = -1
+        self.EmptyObservation = self.StateSize +100
+        self.doneState = self.StateSize -1
+        self.donePenalty = 0.1
+        self.selfLoopPenalty = 0.01
         
         # Renaming for POMCP-algo:
         self.init_state, self.actions_n, self.states_n = self.s_init, self.ActionSize, self.StateSize
@@ -142,19 +148,18 @@ class ACNO_ENV():
         self.solver = 'POMCP'
         self.n_start_states = 200
         self.ucb_coefficient = 0 #no optimism required
-        self.n_sims = 0 #set by agent
         self.seed = np.random.seed() 
         self.min_particle_count = 180
         self.max_particle_count = 220
         self.max_depth = 20
-        self.action_selection_timeout = 120
-        self.particle_selection_timeout = 0.2
-        self.n_sims = 200
+        self.action_selection_timeout = 120_000
+        self.particle_selection_timeout = 200
+        self.n_sims = 10_000
         self.preferred_actions = False
         self.timeout = 7_200_000
         self.discount = 1
         
-        self.doneState = self.StateSize -1
+        
         self.sampling_rewards = []
         self.sampling_steps = []
         
@@ -162,6 +167,9 @@ class ACNO_ENV():
         self.counter = np.zeros((self.StateSize, self.ActionSize)) + 1
         self.T = np.zeros((self.StateSize, self.ActionSize, self.StateSize))
         self.T_counter = np.zeros((self.StateSize, self.ActionSize, self.StateSize)) + 1/self.StateSize
+        self.T_counter[self.doneState,:,:] = 0
+        self.T_counter[self.doneState,:,self.doneState] = 1
+        
         self.R = np.zeros((self.StateSize, self.ActionSize))
         self.R_counter = np.zeros((self.StateSize, self.ActionSize))
     
@@ -222,18 +230,21 @@ class ACNO_ENV():
     def update_model(self, s_prev, a, s_next, reward):
         ac, ao = a % self.CActionSize, a // self.CActionSize
         
-        # update measuring actions 
+        # update measuring action counters
         self.counter[s_prev,ac] += 1
         self.T_counter[s_prev,ac,s_next] += 1
         self.R_counter[s_prev,ac] += reward - self.cost
-        #update non-measuring actions
+        # update non-measuring actions counters
         anm = ac + self.CActionSize
         self.counter[s_prev,anm] += 1
         self.T_counter[s_prev,anm,s_next] += 1
         self.R_counter[s_prev,anm] += reward
         
+        # update model
         self.T = self.T_counter / self.counter[:,:,np.newaxis]
         self.R = self.R_counter / self.counter
+        
+        #
         
     #########################################
     #       POMDP-model functions:             #
@@ -249,31 +260,38 @@ class ACNO_ENV():
             obs = obs.position
         if type(action) is not int:
             action = action.bin_number
-        # If obs not empty, than we know the next state for sure: return that!
-        if obs != self.StateSize:
-            print("Unimplemented!")
-            pass    # TODO: return just the observation!
-            
+        
         new_particles = []
         
+        # If obs not empty, than we know the next state for sure: return that!
+        if obs != self.EmptyObservation:
+            terminal = (obs==self.doneState)
+            while new_particles.__len__() < n_particles:
+                new_particles.append(BoxState(obs, terminal))
+                
+        else:
         # Otherwise, sample new states according to model:
-        while new_particles.__len__() < n_particles:
-            prev_state = np.random.choice(prev_particles).position
-            next_state = np.random.choice(np.arange(self.StateSize), p=self.T[prev_state,action])
-            terminal = (next_state == self.doneState)
-            
-            new_particles.append(BoxState(next_state, terminal))
+            while new_particles.__len__() < n_particles:
+                prev_state = np.random.choice(prev_particles).position
+                next_state = np.random.choice(np.arange(self.StateSize), p=self.T[prev_state,action])
+                terminal = (next_state == self.doneState)
+                
+                new_particles.append(BoxState(next_state, terminal))
         
         # The original has changes to self-sampling if time runs to high: I don't expect that to be necessary...
         return new_particles
 
-    def model_step(self, state, action):
+    def model_step(self, state, action, is_valueCheck = False):
         """Estimates the next state and reward, using exisiting model."""
         next_state = np.random.choice(self.StateSize, p=self.T[state,action])
         reward = self.R[state,action]
         done = False
-        if next_state == self.doneState:
-            done = True
+        if not is_valueCheck:
+            if next_state == self.doneState:
+                done = True
+                reward -= self.donePenalty
+            if next_state == state:
+                reward -= self.selfLoopPenalty
         return next_state, reward, done
     
     def take_real_step(self, action, ignoreMeasuring = True, asStepResults = True):
@@ -284,16 +302,15 @@ class ACNO_ENV():
         
         #Measure (if applicable)
         if not ignoreMeasuring:
-            if action < self.CActionSize: # measuring:
+            if self.is_measuring(action): # measuring:
                 obs, c = self.env.measure()
                 reward -= c
             else:
                 obs = self.EmptyObservation
-            print(action, obs, reward)
             return(reward, obs, done)
         return  (reward, done)
 
-    def generate_step(self, state, action, is_mdp=False, real = False):
+    def generate_step(self, state, action, is_mdp=False, real = False, is_valueCheck = False):
         '''As used by POMCP: models a step & return in POMCP-format'''
         # Unpack actions and states if required
         if type(action) is not int:
@@ -302,12 +319,11 @@ class ACNO_ENV():
             state = state.position
         
         # Simulate a step:
-        (next_state, reward, done) = self.model_step(state, action)
+        (next_state, reward, done) = self.model_step(state, action, is_valueCheck)
         
         # Deal with measuring/not measuring
-        if action > self.CActionSize:
+        if self.is_measuring(action):
             obs = next_state
-            reward -= self.cost
         else:
             obs = self.EmptyObservation
         
@@ -385,4 +401,5 @@ class ACNO_ENV():
         state, reward, done = self.model_step(state, action)
         return BoxState(state, done, reward), True
 
-
+    def is_measuring(self,action):
+        return action < self.CActionSize

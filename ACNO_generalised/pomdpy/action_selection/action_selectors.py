@@ -3,7 +3,7 @@ import numpy as np
 
 
 # UCB1 action selection algorithm
-def ucb_action(mcts, current_node, greedy):
+def ucb_action(mcts, current_node, greedy, prefer_over_value = 0):
     best_actions = []
     best_q_value = -np.inf
     mapping = current_node.action_map
@@ -34,6 +34,16 @@ def ucb_action(mcts, current_node, greedy):
 
     assert best_actions.__len__() is not 0
     # at each iteration print out 16 action (mean q values)
+    
+    # Try filter non-prefered actions
+    if prefer_over_value > 0:
+        newActionList = []
+        for action in best_actions:
+            if action.bin_number >= prefer_over_value:
+                newActionList.append(action)
+        if newActionList.__len__() > 0:
+            best_actions = newActionList
+            
     return random.choice(best_actions)
 
 
