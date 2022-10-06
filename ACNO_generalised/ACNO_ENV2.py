@@ -19,10 +19,14 @@ class PositionData(HistoricalData):
         self.position = position
         self.legal_actions = self.generate_legal_actions 
 
-    def generate_legal_actions(self):
+    def generate_legal_actions(self, includeMeasuring = True):
         legal_actions = []
-        for i in range(self.model.actions_n):
-            legal_actions.append(i)
+        if includeMeasuring: 
+            for i in range(self.model.actions_n):
+                legal_actions.append(i)
+        else: #as used for rollouts:
+            for i in range(self.model.CActionSize):
+                legal_actions.append(i)
         return legal_actions
 
     def shallow_copy(self):
@@ -147,13 +151,13 @@ class ACNO_ENV():
         # Other POMCP-variables
         self.solver = 'POMCP'
         self.n_start_states = 200
-        self.ucb_coefficient = 0 #no optimism required
+        self.ucb_coefficient = 1 #no optimism required
         self.seed = np.random.seed() 
         self.min_particle_count = 180
         self.max_particle_count = 220
-        self.max_depth = 20
-        self.action_selection_timeout = 120_000
-        self.particle_selection_timeout = 200
+        self.max_depth = 30
+        self.action_selection_timeout = 60
+        self.particle_selection_timeout = 0.2
         self.n_sims = 10_000
         self.preferred_actions = False
         self.timeout = 7_200_000
@@ -294,7 +298,7 @@ class ACNO_ENV():
                 reward -= self.selfLoopPenalty
         return next_state, reward, done
     
-    def take_real_step(self, action, ignoreMeasuring = True, asStepResults = True):
+    def take_real_step(self, action, ignoreMeasuring = True):
         """Takes a real step in the environement, returns (reward, done). """
         # Take action
         ac, ao = action % self.CActionSize, action // self.CActionSize
@@ -310,7 +314,7 @@ class ACNO_ENV():
             return(reward, obs, done)
         return  (reward, done)
 
-    def generate_step(self, state, action, is_mdp=False, real = False, is_valueCheck = False):
+    def generate_step(self, state, action, is_mdp=False, real = False):
         '''As used by POMCP: models a step & return in POMCP-format'''
         # Unpack actions and states if required
         if type(action) is not int:
@@ -319,7 +323,7 @@ class ACNO_ENV():
             state = state.position
         
         # Simulate a step:
-        (next_state, reward, done) = self.model_step(state, action, is_valueCheck)
+        (next_state, reward, done) = self.model_step(state, action)
         
         # Deal with measuring/not measuring
         if self.is_measuring(action):
@@ -357,15 +361,22 @@ class ACNO_ENV():
     def create_action_pool(self):
          return DiscreteActionPool(self)
      
-    def get_all_actions(self):
+    def get_all_actions(self, noMeasuring=False):
         '''Return all possible actions in BoxAction-format'''
         all_actions = []
-        for i in range(self.ActionSize):
-            all_actions.append(BoxAction(i))
+        if noMeasuring:
+            for i in range(self.CActionSize):
+                all_actions.append(BoxAction(i))
+        else:
+            for i in range(self.ActionSize):
+                all_actions.append(BoxAction(i))
         return all_actions
 
     def get_legal_actions(self, state):
         return self.get_all_actions()
+    
+    def get_rollout_actions(self, state):
+        return self.get_all_actions(self, state, noMeasuring=True)
     
     def create_observation_pool(self, solver):
         return DiscreteObservationPool(solver)

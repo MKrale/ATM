@@ -128,7 +128,7 @@ class BeliefTreeSolver(Solver):
         :param belief_node:
         :return:
         """
-        legal_actions = belief_node.data.generate_legal_actions()
+        legal_actions = belief_node.data.generate_legal_actions(includeMeasuring = False)
 
         if not isinstance(legal_actions, list):
             legal_actions = list(legal_actions)
@@ -143,7 +143,7 @@ class BeliefTreeSolver(Solver):
             legal_action = random.choice(legal_actions)
             # (*** CHANGE ***)
             is_mdp = bool(self.model.solver == 'MCP')
-            step_result, is_legal = self.model.generate_step(state, legal_action, is_mdp=is_mdp, is_valueCheck = True)
+            step_result, is_legal = self.model.generate_step(state, legal_action, is_mdp=is_mdp)
             is_terminal = step_result.is_terminal
             discounted_reward_sum += step_result.reward * discount
             discount *= self.model.discount
