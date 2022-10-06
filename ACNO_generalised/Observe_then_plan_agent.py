@@ -3,7 +3,7 @@ import time
 from pomdpy.solvers.pomcp import POMCP
 from pomdpy.pomdp.history import Histories, HistoryEntry
 
-from ACNO_generalised.ACNO_ENV2 import ACNO_ENV
+from ACNO_generalised.ACNO_ENV import ACNO_ENV
 
 
 class ACNO_Agent:
@@ -32,7 +32,7 @@ class ACNO_Agent:
         
         # Run exploration phase
         exp_eps = self.explore_episodes #readibilty re-define
-        rewards[:exp_eps], steps[:exp_eps] = self.model.sample_model_AL(self.explore_episodes)
+        rewards[:exp_eps], steps[:exp_eps] = self.model.sample_model(self.explore_episodes)
         measurements[:exp_eps] = steps[:exp_eps]
         print(self.model.T)
         print(self.model.R)

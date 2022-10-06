@@ -28,7 +28,7 @@ import os
 # Agents
 import AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
-from ACNO_generalised.ACNO_Agent2 import ACNO_Agent
+from ACNO_generalised.Observe_then_plan_agent import ACNO_Agent
 
 # Environments
 from AM_Gyms.NchainEnv import NChainEnv
@@ -41,7 +41,7 @@ from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 # Environment wrappers
 from AM_Env_wrapper import AM_ENV as wrapper
 from AM_Env_wrapper import AM_Visualiser as visualiser
-from ACNO_generalised.ACNO_ENV2 import ACNO_ENV
+from ACNO_generalised.ACNO_ENV import ACNO_ENV
 
 # JSON encoder
 class NumpyEncoder(json.JSONEncoder):
