@@ -1,9 +1,10 @@
 import numpy as np
 
-from AM_Env_wrapper import AM_ENV
+from AM_Gyms.AM_Env_wrapper import AM_ENV
 
 
 class ModelLearner():
+    """Class for learning ACNO-MDP """
 
     def __init__(self, env:AM_ENV):
         # Set up AM-environment
@@ -67,7 +68,7 @@ class ModelLearner():
         """Samples one episode, following method proposed in https://hal.inria.fr/hal-00642909"""
         self.env.reset()
         done = False
-        s_prev = self.s_init
+        (s_prev, _cost) = self.env.measure()
         for step in range(max_steps):
             
             # Greedily pick action from Q
@@ -81,11 +82,11 @@ class ModelLearner():
                 (s, cost) = self.env.measure()
                 
             # Update logging variables
-            self.sampling_rewards[episode] += reward - cost
+            self.sampling_rewards[episode] += reward - self.cost
             self.sampling_steps[episode] += 1
             
             # Update model
-            self.update_step(s_prev, a, s, reward)
+            self.update_step(s_prev, a, s, reward) 
             
             # Update learning Q-table
             CAS = self.CActionSize

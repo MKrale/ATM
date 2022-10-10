@@ -10,7 +10,8 @@ For a brief description of how to use it, see the Readme-file in this repo.
 
 # File structure stuff
 import sys
-sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-QMDP/ACNO_generalised")
+sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-QMDP/Baselines")
+sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-QMDP/Baselines/ACNO_generalised")
 
 # External modules
 import numpy as np
@@ -26,9 +27,10 @@ from typing import List, Optional
 import os
 
 # Agents
-import AMRL_Agent as amrl
+import Baselines.AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
-from ACNO_generalised.Observe_then_plan_agent import ACNO_Agent
+from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent
+from Baselines.DRQN import DRQN_Agent
 
 # Environments
 from AM_Gyms.NchainEnv import NChainEnv
@@ -39,9 +41,9 @@ from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 
 # Environment wrappers
-from AM_Env_wrapper import AM_ENV as wrapper
-from AM_Env_wrapper import AM_Visualiser as visualiser
-from ACNO_generalised.ACNO_ENV import ACNO_ENV
+from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
+from AM_Gyms.AM_Env_wrapper import AM_Visualiser as visualiser
+from Baselines.ACNO_generalised.ACNO_ENV import ACNO_ENV
 
 # JSON encoder
 class NumpyEncoder(json.JSONEncoder):
@@ -243,6 +245,8 @@ def get_agent():
                 case "ACNO_POMCP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent(ENV_ACNO)
+                case "DRQN":
+                        agent = DRQN_Agent(ENV)
                 case other:
                         print("Agent not recognised, please try again!")
         return agent

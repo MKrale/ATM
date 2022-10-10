@@ -2,11 +2,14 @@ import numpy as np, random
 from AM_Gyms.Sepsis.MDP import MDP
 from AM_Gyms.Sepsis.State import State
 from AM_Gyms.Sepsis.Action import Action
+from AM_Gyms.Sepsis.sepsis_tabular import SepsisEnv
 
 from gym import spaces
 import gym
 
-class SepsisEnv(gym.Env):
+
+
+class SepsisEnv_Or(gym.Env):
     def __init__(self,
                 obs_cost=0, # turn this off (since obs cost added from examples/sepsis)
                 noise=False,
@@ -56,7 +59,7 @@ class SepsisEnv(gym.Env):
         state_idx = self.env.state.get_state_idx()
         return state_idx, reward, done, {}
 
-    def reset(self, init_idx = None):
+    def reset(self, init_idx = 256):
         self.timestep = 0
         self.env = MDP(init_state_idx=init_idx, 
                         init_state_idx_type='obs', 

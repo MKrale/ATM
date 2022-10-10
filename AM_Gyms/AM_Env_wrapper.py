@@ -34,6 +34,7 @@ class AM_ENV():
     ###          Environment Wrapper code:              ###
     #######################################################
     def get_vars(self):
+        "Returns StateSize, ActionSize, MeasureCost and s_init (-1 if random)"
         return (self.StateSize, self.ActionSize, self.MeasureCost, self.s_init)
     
     def step_and_measure(self,action): #Obsolete

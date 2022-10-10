@@ -2,7 +2,7 @@
 
 from math import comb
 import numpy as np
-import AMRL_Agent as amrl_template
+import Baselines.AMRL_Agent as amrl_template
 
 ####################################################################
 #           Variant 1 : Estimating Value of Measuring

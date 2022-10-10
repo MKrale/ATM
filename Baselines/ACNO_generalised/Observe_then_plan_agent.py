@@ -63,7 +63,7 @@ class ACNO_Agent:
             # Perform action
             ac, ao = action % self.model.CActionSize, action // self.model.CActionSize,
             (reward, obs, done) = self.model.take_real_step(action, False)
-            print(ac, obs, reward)
+            print(action, obs, reward)
             #TODO: take_real_step does not return next state: should it?
             
             # Update solver & history

@@ -3,7 +3,7 @@ sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-Q
 
 
 from ACNO_generalised.ModelLearner import ModelLearner
-from AM_Env_wrapper import AM_ENV
+from AM_Gyms.AM_Env_wrapper import AM_ENV
 from AM_Gyms.NchainEnv import NChainEnv
 from AM_Gyms.frozen_lake import FrozenLakeEnv
 

@@ -1,5 +1,5 @@
-from ModelLearner import ModelLearner
-from AM_Env_wrapper import AM_ENV
+from AM_Gyms.ModelLearner import ModelLearner
+from AM_Gyms.AM_Env_wrapper import AM_ENV
 import numpy as np
 from pomdpy.DataClasses import PositionData, BoxAction, BoxObservation, BoxState
 from pomdpy.discrete_pomdp import DiscreteActionPool, DiscreteObservationPool

@@ -8,9 +8,9 @@ import bottleneck as bn
 import time as t
 from scipy.signal import savgol_filter
 
-from AMRL_Agent import AMRL_Agent as AMRL
-from AM_Env_wrapper import AM_ENV as wrapper
-from AM_Env_wrapper import AM_Visualiser as visualiser
+from Baselines.AMRL_Agent import AMRL_Agent as AMRL
+from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
+from AM_Gyms.AM_Env_wrapper import AM_Visualiser as visualiser
 from AMRL_variant_v2 import AMRL_v2
 from AMRL_variant_v3 import AMRL_v3
 

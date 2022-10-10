@@ -15,7 +15,7 @@ A full description can be found in the report corresponding to this code. Briefl
 
 import numpy as np
 import math as m
-from AM_Env_wrapper import AM_ENV
+from AM_Gyms.AM_Env_wrapper import AM_ENV
 
 
 class AMRL_v2:

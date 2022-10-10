@@ -10,7 +10,7 @@ from csv import QUOTE_ALL
 from functools import total_ordering
 import numpy as np
 import math as m
-from AM_Env_wrapper import AM_ENV
+from AM_Gyms.AM_Env_wrapper import AM_ENV
 
 
 class BAM_QMDP:
