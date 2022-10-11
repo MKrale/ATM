@@ -230,12 +230,6 @@ class DRQN_Agent(object):
             self.train()
         return returns, step, nmbr_measurements
             
-            
-            
-            
-            
-            
-            
     def evaluate(self):
         """To Be Written!"""
         

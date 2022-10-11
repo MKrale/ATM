@@ -128,6 +128,7 @@ class DiscreteActionMappingEntry(ActionMappingEntry):
         self.visit_count = 0
         self.total_q_value = 0
         self.mean_q_value = 0
+        self.max_q_value = -100_000
         self.is_legal = False
 
         # Mark this action mapping entry as preferred. This ensure that the Q value is always positive
@@ -168,6 +169,10 @@ class DiscreteActionMappingEntry(ActionMappingEntry):
         # if self.visit_count <= 0:
         #    self.mean_q_value = -np.inf
         # else:
+        
+        # update the max:
+        if self.max_q_value < delta_total_q:
+            self.max_q_value = delta_total_q
 
         # Average the Q value by taking the Total Q value of this entry divided by the
         # number of times this action has been tried

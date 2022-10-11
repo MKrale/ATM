@@ -19,7 +19,7 @@ def ucb_action(mcts, current_node, greedy, prefer_over_value = 0):
         if not action_entry.is_legal:
             continue
 
-        current_q = action_entry.mean_q_value
+        current_q = action_entry.max_q_value
 
         # If the UCB coefficient is 0, this is greedy Q selection
         if not greedy:
@@ -33,6 +33,19 @@ def ucb_action(mcts, current_node, greedy, prefer_over_value = 0):
             best_actions.append(action_entry.get_action())
 
     assert best_actions.__len__() is not 0
+    
+    # Break ties with mean:
+    # if best_actions.__len__() > 1:
+    #     newActionList = []
+    #     best_mean_q = -np.inf
+    #     for action in best_actions:
+    #         current_q = action_entry.mean_q_value
+    #         if current_q >= best_mean_q:
+    #             if current_q > best_mean_q:
+    #                 best_actions = []
+    #                 best_mean_q = current_q
+    #             newActionList.append(action_entry.get_action())
+    #     best_actions = newActionList
     # at each iteration print out 16 action (mean q values)
     
     # Try filter non-prefered actions

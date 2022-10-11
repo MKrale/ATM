@@ -39,10 +39,10 @@ class ACNO_ENV():
         self.max_depth = 50
         self.action_selection_timeout = 600_000
         self.particle_selection_timeout = 2
-        self.n_sims = 1_000_000
+        self.n_sims = 10_000
         self.preferred_actions = False
         self.timeout = 7_200_000
-        self.discount = 1
+        self.discount = 0.95
         
         
         self.sampling_rewards = []
@@ -101,6 +101,7 @@ class ACNO_ENV():
         done = False
         if next_state == self.doneState:
             done = True
+            #reward = 0
         return next_state, reward, done
     
     def take_real_step(self, action, ignoreMeasuring = False):
@@ -128,6 +129,7 @@ class ACNO_ENV():
             state = state.position
         
         # Simulate a step:
+        rollout = False
         (next_state, reward, done) = self.model_step(state, action, rollout)
         
         # Deal with measuring/not measuring
