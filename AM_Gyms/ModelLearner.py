@@ -16,6 +16,8 @@ class ModelLearner():
         self.ActionSize = self.CActionSize * 2  #both measuring & non-measuring actions
         self.EmptyObservation = self.StateSize +100
         self.doneState = self.StateSize -1
+        self.loopPenalty = self.cost
+        self.donePenalty = self.cost
         
         self.init_model()
 
@@ -27,6 +29,7 @@ class ModelLearner():
         self.T_counter[self.doneState,:,:] = 0
         self.T_counter[self.doneState,:,self.doneState] = 1
         self.R = np.zeros((self.StateSize, self.ActionSize))
+        self.R_biased = np.zeros((self.StateSize, self.ActionSize))
         self.R_counter = np.zeros((self.StateSize, self.ActionSize))
         
         # Variables for learning:
@@ -36,7 +39,7 @@ class ModelLearner():
     
     def get_model(self):
         """Returns T & R"""
-        return self.T, self.R
+        return self.T, self.R, self.R_biased
     
     def get_vars(self):
         """returns StateSize, ActionSize, cost, s_init, doneState"""
@@ -48,9 +51,21 @@ class ModelLearner():
         # mask = self.T_counter<p*self.counter[:,:,np.newaxis]
         mask = self.T < p
         self.T[mask] = 0
-        self.T = self.T / np.sum(self.T, axis =2)[:,:,np.newaxis]        
+        self.T = self.T / np.sum(self.T, axis =2)[:,:,np.newaxis]
+        
+    def add_costs(self):
+        self.R_biased = self.R
+        costs = np.zeros((self.StateSize, self.ActionSize))
+        costs[:, :self.CActionSize] -= self.cost    # Measuring cost
+        for a in range(self.ActionSize):
+            #print(self.T[:,a,:])
+            selfprob = np.diagonal(self.T[:,a,:])
+            #print(selfprob)
+            doneprob = self.T[:,a,self.doneState]
+            costs[:,a] -= selfprob*self.loopPenalty + doneprob*self.donePenalty
+        self.R_biased += costs
     
-    def sample(self, N, max_steps = 500, logging = True):
+    def sample(self, N, max_steps = 500, logging = True, includeCosts = True):
         """Learns the model using N episodes, returns episodic costs and steps"""
         # Intialisation
         self.init_model()
@@ -62,6 +77,8 @@ class ModelLearner():
             if eps % 100 == 0 and logging:
                 print("{} exploration episodes completed!".format(eps))
         self.filter_T()
+        self.add_costs()
+        print(self.R_biased)
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):
@@ -102,7 +119,7 @@ class ModelLearner():
         # update measuring action counters
         self.counter[s_prev,ac] += 1
         self.T_counter[s_prev,ac,s_next] += 1
-        self.R_counter[s_prev,ac] += reward - self.cost
+        self.R_counter[s_prev,ac] += reward
         # update non-measuring actions counters
         anm = ac + self.CActionSize
         self.counter[s_prev,anm] += 1

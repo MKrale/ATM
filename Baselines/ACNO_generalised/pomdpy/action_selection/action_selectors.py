@@ -36,13 +36,13 @@ def ucb_action(mcts, current_node, greedy, prefer_over_value = 0):
     # at each iteration print out 16 action (mean q values)
     
     # Try filter non-prefered actions
-    # if prefer_over_value > 0:
-    #     newActionList = []
-    #     for action in best_actions:
-    #         if action.bin_number >= prefer_over_value:
-    #             newActionList.append(action)
-    #     if newActionList.__len__() > 0:
-    #         best_actions = newActionList
+    if prefer_over_value > 0:
+        newActionList = []
+        for action in best_actions:
+            if action.bin_number >= prefer_over_value:
+                newActionList.append(action)
+        if newActionList.__len__() > 0:
+            best_actions = newActionList
             
     return random.choice(best_actions)
 

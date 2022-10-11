@@ -21,25 +21,25 @@ class ACNO_ENV():
         self.StateSize, self.ActionSize, self.cost, self.s_init, self.doneState = self.env.get_vars()
         self.CActionSize = self.ActionSize // 2  #both measuring & non-measuring actions
         self.EmptyObservation = -1
-        self.donePenalty = 0.1
-        self.selfLoopPenalty = 0.01
+        self.donePenalty = 0.0
+        self.selfLoopPenalty = 0.1
         
         #Set up model (Blank!)
-        self.sample_model(0)
+        #self.sample_model(0)
         
         # Renaming for POMCP-algo:
         self.init_state, self.actions_n, self.states_n = self.s_init, self.ActionSize, self.StateSize
         # Other POMCP-variables
         self.solver = 'POMCP'
         self.n_start_states = 200
-        self.ucb_coefficient = 1 #no optimism required
+        self.ucb_coefficient = 5 #no optimism required
         self.seed = np.random.seed() 
-        self.min_particle_count = 180
-        self.max_particle_count = 220
-        self.max_depth = 30
-        self.action_selection_timeout = 60
-        self.particle_selection_timeout = 0.2
-        self.n_sims = 10_000
+        self.min_particle_count = 18
+        self.max_particle_count = 22
+        self.max_depth = 50
+        self.action_selection_timeout = 600_000
+        self.particle_selection_timeout = 2
+        self.n_sims = 1_000_000
         self.preferred_actions = False
         self.timeout = 7_200_000
         self.discount = 1
@@ -55,7 +55,7 @@ class ACNO_ENV():
     
     def sample_model(self, episodes = 1000):
         rewards, steps = self.env.sample(episodes)
-        self.T, self.R = self.env.get_model()
+        self.T, self.R, self.R_biased = self.env.get_model()
         return rewards, steps
         
         
@@ -91,20 +91,19 @@ class ACNO_ENV():
         # The original has changes to self-sampling if time runs to high: I don't expect that to be necessary...
         return new_particles
 
-    def model_step(self, state, action, is_valueCheck = False):
+    def model_step(self, state, action, rollout = False):
         """Estimates the next state and reward, using exisiting model."""
         next_state = np.random.choice(self.StateSize, p=self.T[state,action])
-        reward = self.R[state,action]
+        if rollout:
+            reward = self.R[state,action]
+        else:
+            reward = self.R_biased[state,action]
         done = False
-        if not is_valueCheck:
-            if next_state == self.doneState:
-                done = True
-                reward -= self.donePenalty
-            if next_state == state:
-                reward -= self.selfLoopPenalty
+        if next_state == self.doneState:
+            done = True
         return next_state, reward, done
     
-    def take_real_step(self, action, ignoreMeasuring = True):
+    def take_real_step(self, action, ignoreMeasuring = False):
         """Takes a real step in the environement, returns (reward, done). """
         # Take action
         ac, ao = action % self.CActionSize, action // self.CActionSize
@@ -120,7 +119,7 @@ class ACNO_ENV():
             return(reward, obs, done)
         return  (reward, done)
 
-    def generate_step(self, state, action, is_mdp=False, real = False):
+    def generate_step(self, state, action, is_mdp=False, rollout=False):
         '''As used by POMCP: models a step & return in POMCP-format'''
         # Unpack actions and states if required
         if type(action) is not int:
@@ -129,7 +128,7 @@ class ACNO_ENV():
             state = state.position
         
         # Simulate a step:
-        (next_state, reward, done) = self.model_step(state, action)
+        (next_state, reward, done) = self.model_step(state, action, rollout)
         
         # Deal with measuring/not measuring
         if self.is_measuring(action):

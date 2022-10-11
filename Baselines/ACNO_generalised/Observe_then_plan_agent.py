@@ -1,4 +1,5 @@
 import numpy as np
+import math as m
 import time
 from pomdpy.solvers.pomcp import POMCP
 from pomdpy.pomdp.history import Histories, HistoryEntry
@@ -31,11 +32,12 @@ class ACNO_Agent:
         rewards, steps, measurements = np.zeros(nmbr_episodes), np.zeros(nmbr_episodes), np.zeros(nmbr_episodes)
         
         # Run exploration phase
+        self.explore_episodes = m.ceil(nmbr_episodes / 2)
         exp_eps = self.explore_episodes #readibilty re-define
         rewards[:exp_eps], steps[:exp_eps] = self.model.sample_model(self.explore_episodes)
         measurements[:exp_eps] = steps[:exp_eps]
-        print(self.model.T)
-        print(self.model.R)
+        #print(self.model.T)
+        #print(self.model.R)
         
         # Run episodes
         for i in range(self.explore_episodes, nmbr_episodes):

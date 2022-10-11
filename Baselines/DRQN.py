@@ -85,10 +85,10 @@ class DRQN(nn.Module):
         self.StateSize, self.CActionSize, self.MeasureCost, self.s_init = self.env.get_vars()
         self.ActionSize = 2*self.CActionSize
         
-        self.lstm_i_dim = 1    # input dimension of LSTM
-        self.lstm_h_dim = 1     # output dimension of LSTM
+        self.lstm_i_dim = 10    # input dimension of LSTM
+        self.lstm_h_dim = 10     # output dimension of LSTM
         self.lstm_N_layer = 10   # number of layers of LSTM
-        self.convSize = self.StateSize
+        self.convSize = int(self.StateSize/2)
         self.flat1 = nn.Linear(self.StateSize, self.lstm_h_dim)
         self.lstm = nn.LSTM(input_size=self.lstm_i_dim, hidden_size=self.lstm_h_dim, num_layers=self.lstm_N_layer)
         self.fc1 = nn.Linear(self.lstm_h_dim, self.convSize)
@@ -177,7 +177,7 @@ class DRQN_Agent(object):
             action = q[0].max(1)[1].data[0].item()
         else:
             q, new_hidden = self.drqn.forward(obs, hidden)
-            action = random.randint(0, self.ActionSize-1)
+            action = random.randint(0, self.CActionSize-1)
         return action, new_hidden
     
     def run(self, nmbr_episodes, logging = True):
@@ -196,24 +196,29 @@ class DRQN_Agent(object):
         obs = self.stateNmbr_to_state(self.s_init)
         nmbr_measurements = 0
         self.env.reset()
+        actions = []
         for step in range(self.maxsteps):
             # env.render()
             action, hidden = self.get_action(obs, hidden, get_decay(episode))
-            
+            actions.append(action)
             ac = action % self.CActionSize
             reward, done= self.env.step(ac)
             
             if action < self.CActionSize:
                 nmbr_measurements += 1
-                obs, cost = self.env.measure()
-                obs = self.stateNmbr_to_state(obs)
+                new_obs, cost = self.env.measure()
+                new_obs = self.stateNmbr_to_state(new_obs)
                 reward -= cost
             else:
-                obs = self.get_empty_obs()
+                new_obs = self.get_empty_obs()
             
-            if done:
+            
+            _obs, _cost = self.env.measure()
+            _obs = self.stateNmbr_to_state(_obs)
+            if done or np.all(obs == _obs):
+                reward -= 0.1
                 pass
-                #reward -= 0.1
+            obs = new_obs
             returns += reward #* self.gamma ** (step)
             self.remember(obs, action, reward)
             # if reward != 0 or MC_iter == max_MC_iter-1:
@@ -278,6 +283,6 @@ class DRQN_Agent(object):
 
 def get_decay(epi_iter):
     min_decay = 0.01
-    return 0.1*max(min_decay, math.pow(0.95, epi_iter))
+    return 0.2*max(min_decay, math.pow(0.99, epi_iter))
 
 

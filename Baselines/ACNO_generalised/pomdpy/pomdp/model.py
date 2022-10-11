@@ -275,7 +275,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             # Now generate a step in the model, and compare the observation to the actual observation.
             # Note that this comparison is done implicitly via the observation mapping, to ensure
             # that approximate observations are treated cleanly.
-            result, is_legal = self.generate_step(state, action)
+            result, is_legal = self.generate_step(state, action, rollout = True)
             if obs_map.get_belief(result.observation) is child_node:
                 particles.append(result.next_state)
         return particles
