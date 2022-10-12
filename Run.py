@@ -32,6 +32,7 @@ from BAM_QMDP import BAM_QMDP
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent
 #from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent
 from Baselines.DRQN import DRQN_Agent
+from Baselines.DynaQ import QBasic, QOptimistic, QDyna
 
 # Environments
 from AM_Gyms.NchainEnv import NChainEnv
@@ -68,7 +69,7 @@ parser.add_argument('-nmbr_eps'         , default = 500,                help='nm
 parser.add_argument('-nmbr_runs'        , default = 1,                  help='nmbr of runs to perform')
 parser.add_argument('-f'                , default = None,               help='File name (default: generated automatically)')
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
-parser.add_argument('-plot'             , default = False,              help='Automatically plot data using Plot_Data.py (default: False)')
+parser.add_argument('-plot'             , default = "False",              help='Automatically plot data using Plot_Data.py (default: False)')
 parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 
@@ -97,9 +98,9 @@ else:
 # Create name for Data file
 envFullName = env_name
 if env_map != 'None':
-        envFullName += env_map
+        envFullName += "_"+env_map
 if env_variant != 'None':
-        envFullName += env_variant
+        envFullName += "_"+env_variant
 
 ######################################################
         ###     Intitialise Environment        ###
@@ -248,6 +249,12 @@ def get_agent():
                         agent = ACNO_Agent(ENV_ACNO)
                 case "DRQN":
                         agent = DRQN_Agent(ENV)
+                case "QBasic":
+                        agent = QBasic(ENV)
+                case "QOptimistic":
+                        agent = QOptimistic(ENV)
+                case "QDyna":
+                        agent = QDyna(ENV)
                 case other:
                         print("Agent not recognised, please try again!")
         return agent
@@ -295,7 +302,7 @@ Algorithm: {}
 Environment: {}
 nmbr runs: {}
 nmbr episodes per run: {}.
-""".format(algo_name, env_name, nmbr_runs, nmbr_eps))
+""".format(algo_name, envFullName, nmbr_runs, nmbr_eps))
 
 agent = get_agent()
 

@@ -158,8 +158,10 @@ class DiscreteActionMappingEntry(ActionMappingEntry):
             self.update_visit_count(delta_n_visits)
 
         # Ensure that preferred actions never have negative Q values to favor them
-        if self.preferred_action and delta_total_q < 0:
-            delta_total_q = -delta_total_q
+        #if self.preferred_action and delta_total_q < 0:
+        # if delta_total_q <-0.05:
+        #     delta_total_q = -0.05
+            #delta_total_q = -delta_total_q
 
         # Add up the Q value
         self.total_q_value += delta_total_q

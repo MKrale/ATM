@@ -142,10 +142,10 @@ class FrozenLakeEnv_v2(Env):
                         if is_slippery:
                             li.append(( 1.0 / 2.0, *update_probability_matrix(row, col, a) ))
                             (row_2, col_2) = inc(row,col,a)
-                            s_2 = to_s(row,col)
-                            letter_2 = desc[row, col]
-                            if letter in b"GH":
-                                li.append((1.0, s, 0, True))
+                            s_2 = to_s(row_2,col_2)
+                            letter_2 = desc[row_2, col_2]
+                            if letter_2 in b"GH":
+                                li.append((1.0/2.0, s, 0, True))
                             else:
                                 li.append(( 1.0 / 2.0, *update_probability_matrix(row_2, col_2, a) ))
 

@@ -38,7 +38,7 @@ class ModelLearner():
         self.df = 0.8
     
     def get_model(self):
-        """Returns T & R"""
+        """Returns T, R, R_biased"""
         return self.T, self.R, self.R_biased
     
     def get_vars(self):
@@ -54,7 +54,7 @@ class ModelLearner():
         self.T = self.T / np.sum(self.T, axis =2)[:,:,np.newaxis]
         
     def add_costs(self):
-        self.R_biased = self.R
+        self.R_biased = np.copy(self.R)
         costs = np.zeros((self.StateSize, self.ActionSize))
         costs[:, :self.CActionSize] -= self.cost    # Measuring cost
         for a in range(self.ActionSize):
@@ -128,7 +128,7 @@ class ModelLearner():
         
         # update model
         self.T = self.T_counter / self.counter[:,:,np.newaxis]
-        self.R = self.R_counter / self.counter
+        self.R = self.R_counter / np.maximum(self.counter-1,1)
         
     def reset_env(self):
         self.env.reset()

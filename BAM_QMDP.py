@@ -164,7 +164,8 @@ class BAM_QMDP:
         epreward,epsteps,epms = np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes))
         for i in range(nmbr_episodes):
             if (i > 0 and i%100 == 0 and logmessages):
-                print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]) ) )
+                print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
+                        i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]), np.average(epms[(i-100):i]) ) )
                 #print(self.T)
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
                 
@@ -315,7 +316,7 @@ Unbiased QTable: {}
         # Calculate support:
         support = 0
         for s in S:
-            if  S[s] > (1/self.StateSize):
+            if  True: #S[s] > (1/self.StateSize):
                 thisSup = S[s]*(np.sum(self.alpha[s,H[-1]] ) - self.StateSize*self.initPrior ) # We take away initial values to get # visits
                 support += thisSup #min( S[s] * 2 * self.NmbrOptimiticTries, thisSup )   # Making sure no one state contributes too much support.
         return support >= self.NmbrOptimiticTries

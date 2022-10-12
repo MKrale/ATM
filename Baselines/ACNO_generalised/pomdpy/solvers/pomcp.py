@@ -117,7 +117,7 @@ class POMCP(BeliefTreeSolver):
             console(4, module, "action selection timeout")
             return 0
 
-        action = ucb_action(self, belief_node, False)# prefer_over_value=self.model.CActionSize)
+        action = ucb_action(self, belief_node, False, prefer_over_value=self.model.CActionSize)
 
         # Search horizon reached
         if tree_depth >= self.model.max_depth:

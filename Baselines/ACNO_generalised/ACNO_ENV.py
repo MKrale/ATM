@@ -36,7 +36,7 @@ class ACNO_ENV():
         self.seed = np.random.seed() 
         self.min_particle_count = 18
         self.max_particle_count = 22
-        self.max_depth = 50
+        self.max_depth = 30
         self.action_selection_timeout = 600_000
         self.particle_selection_timeout = 2
         self.n_sims = 10_000
