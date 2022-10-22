@@ -12,17 +12,16 @@ class QBasic:
         self.T_counter = np.zeros((self.StateSize, self.ActionSize, self.StateSize))
         self.T = np.zeros((self.StateSize, self.ActionSize, self.StateSize)) + 1/self.StateSize
         self.Q = np.zeros((self.StateSize, self.ActionSize)) + 0.8
-        self.R_counter = np.zeros((self.StateSize, self.ActionSize))
         
         self.lr = 0.3
         self.df = 0.95
+        self.selfLoopPenalty = self.MeasureCost
         
         
-    def update_Q(self,s,action,reward,cost,obs):
+    def update_Q(self,s,action,reward,obs):
         Psi = 0
         Psi += np.sum(self.T[s,action] * np.max(self.Q, axis=1))
         self.Q[s,action] = (1-self.lr) * self.Q[s,action] + self.lr * ( reward + self.df * Psi   )
-        self.R_counter[s,action] += reward
     
     def update_T(self,s,action,obs):
         self.T_counter[s,action,obs] += 1
@@ -33,11 +32,14 @@ class QBasic:
     
     def run_step(self,s):
         action = self.pick_action(s)
+        #print(s,action)
 
         (reward, done) = self.env.step(action, s)
         (obs, cost) = self.env.measure()
         
-        self.update_Q(s, action, reward,cost, obs)
+        reward -= cost
+        
+        self.update_Q(s, action, reward, obs)
         self.update_T(s, action, obs)
         return obs, reward, done
     
@@ -63,6 +65,7 @@ class QBasic:
             if logging and i%100 == 0:
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( 
                         i, episodes, np.average(rewards[(i-100):i]), np.average(steps[(i-100):i]) ) )
+        print(self.Q)
         return np.sum(rewards), rewards, steps, np.ones(episodes)
     
 class QOptimistic(QBasic):
@@ -88,9 +91,17 @@ class QDyna(QBasic):
     
     def __init__(self, ENV: AM_ENV):
         super().__init__(ENV)
+        self.R_counter = np.zeros((self.StateSize, self.ActionSize))
         self.trainingSteps = 10
         
+    def update_R(self,s,action,reward):
+        self.R_counter[s,action] += reward
         
+    def update_Q(self,s,action,reward,obs, isReal=True):
+        super().update_Q(s,action,reward,obs)
+        if isReal:
+            self.update_R(s,action,reward)
+    
     def run_step(self, s):
         obs,reward, done = super().run_step(s)
         for i in range(self.trainingSteps):
@@ -103,5 +114,6 @@ class QDyna(QBasic):
     def simulate_step(self,s,action):
         snext = np.random.choice(self.StateSize, p=self.T[s,action])
         r = self.R_counter[s,action]/np.sum(self.T_counter[s,action])
-        self.update_Q(s,action,r,0,snext) #NO COST!!!
+        r -= self.MeasureCost
+        self.update_Q(s,action,r,snext, isReal=False) #NO COST!!!
         

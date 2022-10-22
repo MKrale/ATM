@@ -171,7 +171,10 @@ def get_env():
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=True)
                                 case "semi-slippery":
                                         env = FrozenLakeEnv_v2(desc=desc, map_name=map_name)
+                                case None:
+                                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                                 case other: #default = deterministic
+                                        print("Environment var not recognised!")
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                         
                                         
@@ -190,6 +193,7 @@ def get_env():
                                 case '30':
                                         StateSize = 30
                                 case other: # default
+                                        print("env_map not recognised!")
                                         StateSize = 20
                                 
                         env = NChainEnv(StateSize)

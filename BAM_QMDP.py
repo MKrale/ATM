@@ -10,6 +10,9 @@ from csv import QUOTE_ALL
 from functools import total_ordering
 import numpy as np
 import math as m
+import time
+
+from torch import randint
 from AM_Gyms.AM_Env_wrapper import AM_ENV
 
 
@@ -20,7 +23,7 @@ class BAM_QMDP:
     ###     INITIALISATION AND DEFINING VARIABLES:      ###
     #######################################################
 
-    def __init__(self, env:AM_ENV, eta = 0.00, nmbr_particles = 100, update_globally = True):
+    def __init__(self, env:AM_ENV, eta = 0.00, nmbr_particles = 100, update_globally = True, offline_training_steps = 10):
         # Environment arguments:
         self.env = env
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
@@ -31,7 +34,7 @@ class BAM_QMDP:
         # Meta-variables:
         self.eta = eta                              # Chance of picking a non-greedy action (should be called epsilon...)
         self.nmbr_particles = nmbr_particles        # Number of particles used to represent the belief state.
-        self.NmbrOptimiticTries = 20                # Meta variable determining for how many tries a transition should be biased.
+        self.NmbrOptimiticTries = 25                # Meta variable determining for how many tries a transition should be biased.
         self.selfLoopPenalty = 0.95                 # Penalty applied to Q-value for self loops (1 means no penalty)
         self.lossBoost = 1                          # Testing variable to boost the effect of Measurement Loss/Regret (1 means no boost)
         self.stopPenalty = 0.0                      # Penalty aplied to Q-values achieved in the last step (0 means no penalty)
@@ -39,16 +42,19 @@ class BAM_QMDP:
         self.max_estimated_loss = self.MeasureCost  # Minimum Measurement Regret for which a measurement is taken (currently equal to measurement cost)
         self.optimisticPenalty = 1                  # Maximum return estimate (Rewards in all environments are normalised such that this is always 1)
         self.update_globally = update_globally      # Boolean to distinguish between BAM-QMDP (without global Q-update, False) and BAM-QMDP+ (with global Q-update, True)
+        
+        self.otsteps = offline_training_steps
+        self.offline_eta = 0.5
 
-        self.initPrior = 1/self.StateSize                     # Initial alpha-values, as used in the prior for T
+        self.initPrior = 1/self.StateSize           # Initial alpha-values, as used in the prior for T
         self.optimism_type = "RMAX+"                # RMAX+ (old), UCB, RMAX
-        self.UCB_Cp = 0.3
-        self.P_noMeasureRate = 0.4
+        self.UCB_Cp = 0.1
+        self.P_noMeasureRate = 0.0
         self.Q_noMeasureRate = 1
-        self.use_exp = False
+        self.use_exp = True
         
         self.dynamicLR = False
-        self.lr = 0.1                               # Learning rate, as used in standard Q updates. Currently unused, since we use a dynamic learning rate
+        self.lr = 0.2                               # Learning rate, as used in standard Q updates. Currently unused, since we use a dynamic learning rate
         self.df = 0.95                              # Discount Factor, as used in Q updates
         
         self.init_run_variables()
@@ -56,13 +62,23 @@ class BAM_QMDP:
     def init_run_variables(self):
         "Initialises all variables that should be reset each run."
         # Arrays keeping track of model:
+        
+        # Value Estimation Tables
         self.QTable             = np.ones ( (self.StateSize, self.ActionSize), dtype=np.longfloat ) * self.optimisticPenalty    # Q-table as used by other functions, includes initial bias
-        self.QTable[self.doneState] = 0
+
         self.QTableUnbiased     = np.zeros( (self.StateSize, self.ActionSize), dtype=np.longfloat )                             # Q-table based solely on experience (unbiased)
-        self.QTriesTable        = np.zeros( (self.StateSize, self.ActionSize) )                                                 # Tallies how often (s,a) has been visited (called N_q in paper)
+                                                                                         
         self.QTableRewards      = np.zeros( (self.StateSize, self.ActionSize) )                                                 # Record average immidiate reward for (s,a) (called \hat{R} in report)
-        self.Q_max              = np.zeros( (self.StateSize), dtype=np.longfloat)                                               # Q-value of optimal action as given by Q (used for readability)
-        self.alpha              = np.ones( (self.StateSize, self.ActionSize, self.StateSize) ) * self.initPrior# Alpha-values used for dirichlet-distributions.
+        self.Qmax               = np.zeros( (self.StateSize), dtype=np.longfloat)                                               # Q-value of optimal action as given by Q (used for readability)
+        self.QMaxUnbiased       = np.zeros( (self.StateSize), dtype=np.longfloat)
+        self.QCounter           = np.zeros( (self.StateSize, self.ActionSize ))
+        
+        self.QTableUnbiased[self.doneState] = 0
+        self.QTable[self.doneState]         = 0
+        
+        
+        self.alpha              = np.ones ( (self.StateSize, self.ActionSize, self.StateSize) ) * self.initPrior                 # Alpha-values used for dirichlet-distributions.
+        self.alpha_sum          = np.ones ( (self.StateSize, self.ActionSize) ) * (self.initPrior * self.StateSize)
         self.ChangedStates      = {}
         self.T                  = np.zeros((self.StateSize, self.ActionSize, self.StateSize), dtype=np.longfloat) # States to be checked in global Q update
         # Other vars:
@@ -98,65 +114,70 @@ class BAM_QMDP:
                 s[i] = 1.0/self.StateSize
         else:
             s[self.s_init] = 1
-        s_previous = s
-        s_last_measurement = self.s_init
-        reward, cost, action = 0, 0, 0
-        H = []
+        next_action_known = False
  
         ### MAIN LOOP ###
         while not self.is_done:
             
-            # Find next optimal action & Loss
-            cost=0
-            (action, estimated_loss) = self.obtain_optimal_action(s)
+            # 1: Find optimal action:
+            if next_action_known:
+                action = next_action
+            else:
+                action = self.get_action(s)
             
-            #print(action, self.T, self.alpha)
-
-            # If Loss is "too big" or we do not have enough info about the current state, we do the following:
-            if (estimated_loss * self.lossBoost > self.max_estimated_loss) or (not (self.has_transition_support(s_previous, H) )) and len(H)>0:
-                
-                # measure model:
-                self.measurements_taken += 1
-                (s_observed, cost) = self.env.measure()
-
-                # update all vars, then update model
-                s = {}
-                s[s_observed] = 1
-                s_last_measurement = s_observed
-
-                #re-compute optimal action
-                action = self.obtain_optimal_action(s, returnLoss = False)
+            #2: Compute next belief state:
+            b_next = self.guess_next_state(s, action)
             
-            if len(H) > 0:
-                self.update_model(s,s_last_measurement, s_previous, H, reward, type="QT")
-
-            # Take optimal action or random action (according to eta, which is 0 by default)
-
+            #3: Decide whether or not to measure:
+            next_action = self.get_action(b_next)
+            next_action_known = True
+            
+            Loss = self.get_loss(b_next,next_action)
+            TransSupport = self.get_support(s,action)
+            
+            measure = (Loss > self.MeasureCost) or (TransSupport < self.NmbrOptimiticTries)
+            
+            #4: Take Action:
             if np.random.rand() < self.eta:
-                action = m.floor(np.random.rand()*self.ActionSize)
-            (reward, self.is_done) = self.env.step(action, s)
+                action = m.floor(np.random.randint(self.ActionSize))
+                measure = True
+            (reward, self.is_done) = self.env.step(action)
+            cost = 0
+            
+            #5: Measure
+            if measure:
+                s_next, cost = self.env.measure()
                 
-            # Update estimate s & logging variables
-            s_previous = s
-            s = self.guess_next_state(s, action)
-            H.append(action)           
+                next_action_known = False
+                self.measurements_taken += 1
+            
+            #6: Update b_next
+                b_next.clear()
+                b_next[s_next] = 1
+                
+            #7: Update P:
+                self.update_T(s,b_next,action)
+                
+            #8: Update Q
+
+            self.update_Q_lastStep_only(s,b_next,action,reward)
+                
+            if self.otsteps > 0:
+                for i in range(self.otsteps):
+                    self.train_offline()
+            
+            #9: Update variables for next step:
+            #print(s,action,measure, b_next)
+            s = b_next
             self.episodeReward  += reward - cost
             self.steps_taken    += 1
             self.totalSteps     += 1
-
-            # If BAM-QMDP+, do global updates periodically
-            if self.steps_taken % 100 == 0:
-                if self.update_globally:
-                    self.update_Q_globally()
             
-        self.update_model(s,s_last_measurement,s_previous, H, reward, type="QT", isDone=True)
-        if self.update_globally:
-            self.update_Q_globally()
-
-        # update logging variables and return
+        ### END LOOP ###
         self.totalReward += self.episodeReward
         returnVars = (self.episodeReward, self.steps_taken, self.measurements_taken)
-        return returnVars
+        return returnVars  
+            
 
     def run(self, nmbr_episodes, get_full_results=False, print_info = True, logmessages = True):
         "Performs the specified number of episodes of BAM-QMDP."
@@ -166,7 +187,7 @@ class BAM_QMDP:
             if (i > 0 and i%100 == 0 and logmessages):
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]), np.average(epms[(i-100):i]) ) )
-                #print(self.T)
+                #print(self.alpha, self.QTable)
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
                 
         if print_info:
@@ -185,7 +206,7 @@ Unbiased QTable: {}
     ###                 HELPER FUNCTIONS:               ###
     #######################################################
 
-    def obtain_optimal_action(self,S, returnLoss = True):
+    def get_action(self,S):
         "Obtains the most greedy action (and its Measurement Regret) according to current belief and model."
 
         #Compute optimal action
@@ -193,18 +214,30 @@ Unbiased QTable: {}
         for s in S:
             p = S[s]
             thisQ += self.QTable[s]*p
-        a_opt = np.random.choice(np.where(thisQ==thisQ.max())[0]) #randomize tiebreaks
+        thisQMax = np.max(thisQ)
+        return int(np.random.choice(np.where(np.isclose(thisQ,thisQMax))[0])) #randomize tiebreaks
         
-        #Compute Loss
-        if returnLoss:     
-            Loss = 0
-            for s in S:
-                p = S[s]
-                QTable_max = max (np.max(self.QTable[s]), np.max(self.QTableUnbiased[s])) # expected return if we were in state s
-                Loss +=  p * max( 0.0, QTable_max - self.QTableUnbiased[s,a_opt] )
-            return (a_opt, Loss)
-            
-        return a_opt
+    def get_loss(self, S, action):
+        Loss = 0
+        for s in S:
+            p = S[s]
+            QTable_max = max (np.max(self.QTable[s]), np.max(self.QTableUnbiased[s])) # expected return if we were in state s
+            Loss +=  p * max( 0.0, QTable_max - self.QTableUnbiased[s,action] )
+        return Loss
+    
+    def get_support(self, S, action):
+        "Compute transition support of current belief-action pair"
+
+        # If belief state becomes too big, always measure
+        if len(S) > 0.5*self.nmbr_particles:
+            return 0
+        
+        # Calculate support:
+        support = 0
+        for s in S:
+            support += S[s]*(np.sum(self.alpha[s,action] ) - self.StateSize*self.initPrior )
+        return support
+
     
     def _dict_to_arrays_(self, S):
         "Returns array of states and probabilities for belief state"
@@ -224,62 +257,21 @@ Unbiased QTable: {}
     
     def sample_T(self,s, action, nmbr=1):
         if self.use_exp:
-            return self.alpha[s,action]/np.sum(self.alpha[s,action])
+            if self.alpha_sum[s,action] > 8:
+                return (self.alpha[s,action] - self.initPrior) / (self.alpha_sum[s,action] - ( self.StateSize * self.initPrior) )
+            return (self.alpha[s,action]) / self.alpha_sum[s,action]
         if nmbr != 1:
             print("Average samples not implemented yet!")
         return self.dirichlet_approx(alpha = self.alpha[s,action], nmbr_samples = 1)
-
-    def sample_T_full(self, nmbr_samples = 10): # make nmbr samples global?
-        T = np.zeros((self.StateSize, self.ActionSize, self.StateSize))
-        for s in range(self.StateSize):
-            for a in range(self.ActionSize):
-                if self.use_exp:
-                    T[s,a] = self.alpha[s,a]/np.sum(self.alpha[s,a])
-                else:
-                    T[s,a] = np.average(self.dirichlet_approx(self.alpha[s,a], nmbr_samples), axis=0)      
-        return T
-    
-    def accuracy(self, alpha):
-        return (np.sum(alpha)*5)/(self.NmbrOptimiticTries*self.StateSize)
-    
-    def dirichlet_approx(self, alpha, nmbr_samples = 1, accuracy = -1):
-        lenAlpha = len(alpha)
-        distr = np.zeros((nmbr_samples, lenAlpha), dtype=np.longfloat)
-        if accuracy == -1:
-            accuracy = self.accuracy(alpha)
         
-        # Check which values > accuracy, and so have to be sampled
-        to_check = np.arange(lenAlpha)[alpha > accuracy]
-        # If all are too small, just return an equal distribution over all states:
-        if len(to_check) < 1:
-            distr = np.ones((nmbr_samples, lenAlpha)) / lenAlpha
-        # For all samples i, sample values for all elements j
-        else:
-            i=0
-            while i < nmbr_samples:
-                totalDist = 0
-                for j in to_check:
-                    distr[i,j] = np.random.standard_gamma(alpha[j])
-                    totalDist += distr[i,j]
-                # Normalise sample i according to total of samples
-                if totalDist > 0:
-                    distr[i] = distr[i]/totalDist
-                    i += 1
-        # Numpy is difficult sometimes....             
-        if nmbr_samples == 1:
-            return distr[0]
-        return distr
-                
         
     def guess_next_state(self, S, action):
         "Samples a next belief state after action a, according to current belief and model."
 
-        # Sample probability distribution for next state
-        particles = self._dict_to_particles_(S)       
+        # Sample probability distribution for next state 
         probDist = np.zeros(self.StateSize)
-        for s in particles:
-            probDist += self.sample_T(s, action)            
-        probDist = probDist / self.nmbr_particles
+        for s in S:
+            probDist += S[s] * self.sample_T(s,action)
         
         # Filter all zero-probability states for efficiency
         states = np.arange(self.StateSize)
@@ -303,181 +295,142 @@ Unbiased QTable: {}
             S_next[int(s)] = counts[i] * 1/self.nmbr_particles
         return S_next
     
-    def has_transition_support(self, S, H):
-        "Compute transition support of current belief-action pair"
-
-        # If first action, we do not need to measure
-        if len(H) == 0:
-            return True
-        # If belief state becomes too big, always measure
-        if len(S) > 0.5*self.nmbr_particles:
-            return False
-        
-        # Calculate support:
-        support = 0
-        for s in S:
-            if  True: #S[s] > (1/self.StateSize):
-                thisSup = S[s]*(np.sum(self.alpha[s,H[-1]] ) - self.StateSize*self.initPrior ) # We take away initial values to get # visits
-                support += thisSup #min( S[s] * 2 * self.NmbrOptimiticTries, thisSup )   # Making sure no one state contributes too much support.
-        return support >= self.NmbrOptimiticTries
+    
 
     #######################################################
     ###                 MODEL UPDATING:                 ###
     #######################################################
 
-    def update_model(self, s_current, s_last_measurement, s_last, H, reward, type="QT", isDone=False):
-        "Convenience function to simplify model update notation (if type has Q in we do a Q-update, and the same for T)"
-        if type=="QT" or type=="T":
-            self.update_T_lastStep_only(s_last, s_current, H, isDone)
-        if type=="QT" or type=="Q":
-            self.update_Q_lastStep_only(s_last, s_current, H, reward, isDone)
-
-    def update_T_lastStep_only(self,S1,S2,H, isDone=False):
+   
+    def update_T(self, S1, S2, action, isDone = False):
         'Updates probability function P according to transition (S1, a, S2)'
         
-        
-        if len(H)>0:
-            action = H[-1]
+        for s1 in S1:
+            p1 = S1[s1]
             
-            for s1 in S1:
-                # Unpack some variables
-                p1 = S1[s1]
-                thisAlpha = np.zeros(self.StateSize)
-
-                if isDone:
-                    thisAlpha[self.doneState] += p1
-                else:
-                    for s2 in S2:
-                        thisAlpha[s2] += p1*S2[s2]
+            # If done, we can update alphas regardless of whether we measured.
+            if isDone:
+                self.alpha[s1,action,self.doneState] += p1
+                self.alpha_sum[s1,action] += p1
+            
+            # Otherwise, update alpha normally when measuring
+            elif len(S2) == 1 and len(S1) == 1:
+                for s2 in S2:
+                    self.alpha[s1,action,s2] += p1
+                    self.alpha_sum[s1,action] += p1
+            
+            # If not measuring
+            else:
+                pass
+                # rate = p1 * self.P_noMeasureRate / m.log(self.totalSteps + 10) / self.alpha_sum[s1,action]
+                # self.alpha[s1,action] += rate * (self.alpha[s1,action] - self.initPrior)
+                # self.alpha_sum[s1,action] += rate
+   
+    
+    # def update_Q(self, S1, S2, action, reward, isDone = False, isReal = True):
+        
+    #     for s1 in S1:
+    #         p1 = S1[s1]
+            
+            
+    #         if isReal:
+    #             self.QCounter += s1
+    #             self.QTableRewards += 0
+    #         p1 = S1[s1]
+            
+    #         if not isDone:
+    #             thisQ = 0
                 
-                if len(S2) == 1:
-                    self.alpha[s1,action] += thisAlpha
-                else:
-                    alpha_filtered = np.copy(self.alpha[s1,action]) [self.alpha[s1,action] > self.accuracy(self.alpha[s1,action])]
-                    alpha_norm = np.sum(alpha_filtered)
-                    if alpha_norm > 0:
-                        alpha_unbiased_norm = (self.alpha[s1,action]-self.initPrior) / alpha_norm
-                        self.alpha[s1,action] += self.P_noMeasureRate / m.log(self.totalSteps+10) * alpha_unbiased_norm
-        return
+    #             for s2 in S2:
+    #                 p2 = S2[s2]
+                    
+    #                 #...
+                    
+            
                 
-    def update_Q_lastStep_only(self,S1, S2, H, reward, isDone = False):
+    def update_Q_lastStep_only(self,S1, S2, action, reward, isDone = False, isReal = True):
         'Updates Q-table according to transition (S1, a, S2)'
-
-        action = H[-1] 
-        if isDone:
-            reward -= self.stopPenalty # penalise stopping with some reward (currently unused)
 
         for s1 in S1:
             # Unpack some variables
             p1 = S1[s1]
             if p1 < 1:
-                p1 = p1 * self.Q_noMeasureRate
+                    p1 = p1 * self.Q_noMeasureRate
             thisQ = 0
+            thisQUnbiased = 0
             
-            previousQ, previousTries = self.QTableUnbiased[s1,action], self.QTriesTable[s1,action]
-            thisTries = previousTries + p1
+            
+            if not isDone:
+                if len(S2) > 1 :
+                    dict_this_s = dict()
+                    dict_this_s[s1] = 1
+                    S2 = self.guess_next_state(dict_this_s, action)
+                for s2 in S2:
+                    #Compute chance of transition:
+                    p2 = S2[s2]
+                    
+                    pt = p1*p2 
 
-
-            for s2 in S2:
-                #Compute chance of transition:
-                p2 = S2[s2]
-                pt = p1*p2 
-
-                # Update Q-table according to transition
-                if not isDone:
-                    if s1 != s2:
-                        thisQ += p2*np.max(self.QTable[s2])
-                    elif s1 == s2:
-                        thisQ += p2*self.selfLoopPenalty*np.max(self.QTable[s2]) # We dis-incentivize self-loops by applying a small penalty to them
+                    # Update Q-table according to transition
+                    if not isDone:
+                        if s1 != s2:
+                            thisQ += p2*np.max(self.QTable[s2])
+                            thisQUnbiased += p2*np.max(self.QTableUnbiased[s2])
+                        elif s1 == s2:
+                            thisQ += p2*self.selfLoopPenalty*np.max(self.QTable[s2]) # We dis-incentivize self-loops by applying a small penalty to them
+                            thisQUnbiased += p2*self.selfLoopPenalty*np.max(self.QTableUnbiased[s2])
                             
 
-                # Update Q-unbiased, N_Q & \hat{R}
-                if self.dynamicLR:
-                    totQ = (previousQ*previousTries + (p1 * (self.df*thisQ + reward)) ) / (previousTries+p1) # Dynamic learning rate
-                else: 
-                    thisLR = self.lr * p1
-                    totQ = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQ)
-                self.QTriesTable[s1,action], self.QTableUnbiased[s1,action] = thisTries, totQ
-                self.QTableRewards[s1,action] = (self.QTableRewards[s1,action]*previousTries + p1 * reward) / (previousTries+p1)
+                # Update Q-unbiased
+            if self.dynamicLR:
+                print(" UNIMPLEMENTED! ")
+                pass
+                #totQ = (previousQ*previousTries + (p1 * (self.df*thisQ + reward)) ) / (previousTries+p1) # Dynamic learning rate
+            else: 
+                thisLR = self.lr * p1
+                totQUnbiased = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQUnbiased)
+                totQ = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQ)
+            self.QTableUnbiased[s1,action] =  totQ
+            
+            # Update QTries & R only if real action
+            if isReal and len(S2) == 1 and len(S1) == 1:
+                prevCounter = self.QCounter[s1,action]
+                self.QCounter[s1,action] += p1
+                self.QTableRewards[s1,action] = (self.QTableRewards[s1,action]*prevCounter + p1 * reward) / (self.QCounter[s1,action])
             
             # Implement bias
-            if self.QTriesTable[s1,action] > self.NmbrOptimiticTries and self.optimism_type != "UCB":
-                        self.QTable[s1,action] = totQ
+            thisAlpha = np.sum(self.alpha[s1,action]) + p1
+            #print(thisAlpha)
+            #print(s1,action,S2, self.QTable[s1,action], self.QTableUnbiased[s1,action])
+            if thisAlpha > self.NmbrOptimiticTries and self.optimism_type != "UCB":
+                self.QTable[s1,action] = totQ
+                #print(totQ)
             else:
                 match self.optimism_type:
                     case "RMAX+":
-                        self.QTable[s1,action] = (thisTries*totQ + self.optimisticPenalty*(self.NmbrOptimiticTries - thisTries)) / self.NmbrOptimiticTries
+                        #print(" Help?")
+                        self.QTable[s1,action] = totQUnbiased + max(0,1-totQUnbiased) * (self.NmbrOptimiticTries - thisAlpha) / self.NmbrOptimiticTries
+                        #self.QTable[s1,action] = (thisAlpha*totQUnbiased + self.optimisticPenalty*(self.NmbrOptimiticTries - thisAlpha)) / max(self.NmbrOptimiticTries, thisAlpha)
                     case "UCB":
-                        optTerm = np.sqrt(2 * np.log10(self.steps_taken+2) / (self.QTriesTable+1)) # How do we do this +2 cleanly?
+                        optTerm = np.sqrt(2 * np.log10(self.totalSteps+2) / (self.QCounter+1)) # How do we do this +2 cleanly?
                         self.QTableUnbiased[s1,action] = totQ
                         self.QTable = self.QTableUnbiased + ( self.UCB_Cp * optTerm )
                     case "RMAX":
                         self.QTable[s1,action] = 1
-                    
-                    
-    def update_Q_globally(self):
-        'Global Q-update function, which updates all Q-values according to current model. (Used by BAM-QMDP+)'
-        # Note: this algorithm is extremely unoptimised: using smarter datatypes and/or keeping track of changed Q-values throughout the rest of the algorithm
-        # could make it much quicker. As a proof of concept, though, the function should work fine.
-
-        # Intialise Q_max & ChangedStates
-        self.Q_max = np.max(self.QTable, axis=1)
-
-        for i in range(self.StateSize):
-            self.ChangedStates[i] = self.Q_max[i] # Array with all states to be checked for updates
-        
-        # Sample T from distribution:
-        self.T = self.sample_T_full()
-        i = 0
-        
-        # Reset all Q-values to reward + optimism
-        # NOTE: this means we always need to re-compute Q completely, highering average time complexity.
-        self.QTable = self.QTableRewards + np.maximum( 0, ( self.NmbrOptimiticTries - self.QTriesTable)/self.NmbrOptimiticTries)
-        
-        ## MAIN LOOP ##
-        while self.ChangedStates:
-            i+=1
-            # Get current node
-            s_source = max(self.ChangedStates)
-
-                # Go through all possible neighbours s:
-            for action in range(self.ActionSize):
-                to_update = np.unique( np.nonzero(self.T[:,action,s_source]) ) #correct?
-                for s in to_update:
-                    if np.sum(self.alpha[s,action]) > 1:
-                        # for each neighbour, update Q:
-                        T_neighbours = np.copy(self.T[s, action]) # Array of probabilities of going to any neighbour (with p > updateAccuracy)
-                        T_neighbours[self.T[s,action] < 1/self.StateSize] = 0
-                        Q_neighbours = T_neighbours * self.df * self.Q_max # Future estimated return (aka Psi in report)
-                        Q_neighbours[s] = Q_neighbours[s]*self.selfLoopPenalty
-                        Q_tot =  np.sum(Q_neighbours) + self.QTableRewards[s, action]
-                        self.QTableUnbiased[s,action] = Q_tot
-
-                        # Add optimistic bias & compute if Q-values have changed enough to warrent updating it's neigbours:
-                        Tries = self.QTriesTable[s,action]
-                        if Tries > self.NmbrOptimiticTries:
-                            if Q_tot > 0:
-                                has_changed = ( Q_tot*(1-self.updateAccuracy) > np.max(self.QTable[s]))
-                            else:
-                                has_changed = ( Q_tot*(1+self.updateAccuracy) > np.max(self.QTable[s]))
-                            self.QTable[s,action] = Q_tot
-                        else:
-                            has_changed = False # For efficiency reasons, we never add still-biased states back to ChangedStates
-                            self.QTable[s,action] = (Tries*Q_tot + self.optimisticPenalty * (self.NmbrOptimiticTries - Tries)) / self.NmbrOptimiticTries
-                        
-                        # Add s to ChangedStates if new Q is maximal Q of state:
-                        if has_changed:
-                            self.ChangedStates[s] = Q_tot
-                            self.Q_max[s] = Q_tot
+    
+    def train_offline(self):
+        for i in range(self.otsteps):
+            # Choose random state and action
+            s = np.random.randint(self.StateSize)
+            S_dict = {}
+            S_dict[s] = 1
             
-            # Remove current state from changedStates
-            del self.ChangedStates[s_source]
-
-            if i % (5*self.StateSize) == 0 and i > 150:
-                print("Warning: on step {} of Global Q-table update (more than 5x the statesize)!".format(i))
-                        
-
-
-                    
-                    
-
+            if np.random.rand() < self.offline_eta:
+                a = np.random.randint(self.ActionSize)
+            else:
+                a = self.get_action(S_dict)
+                
+            if np.sum(self.alpha[s,a]) > 5:
+                b_next = self.guess_next_state(S_dict,a)
+                r = self.QTableRewards[s,a]
+                self.update_Q_lastStep_only(S_dict, b_next,a, r, isReal=False)

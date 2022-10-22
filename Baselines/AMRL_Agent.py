@@ -5,7 +5,7 @@ import numpy as np
 class AMRL_Agent:
     '''Creates a AMRL-Agent, as described in https://arxiv.org/abs/2005.12697'''
 
-    def __init__(self,env, eta=0.1, m_bias = 0.1, turn_greedy=False, greedy_turnpoint = 0.3):
+    def __init__(self,env, eta=0.1, m_bias = 0.1, turn_greedy=True, greedy_turnpoint = 0.8):
         #load all environment-specific variables
         self.env = env
         self.StateSize, self.ActionSize, self.measureCost, self.s_init = env.get_vars()
@@ -16,6 +16,8 @@ class AMRL_Agent:
         self.be_greedy = False
         self.MeasureSize = 2
         self.init_Q = 0
+        self.lr = 0.3
+        self.df = 0.95
 
         # Create all episode and run-specific variables
         self.reset_Run_Variables()
@@ -54,13 +56,22 @@ class AMRL_Agent:
     def update_QTable(self, s1, action, measure, s2, reward):
         '''Updates Q Table according to action and reward'''
         previousQ, previousTries = self.QTable[s1,action,measure], self.QTriesTable[s1,action,measure]
-        Q_s2 = np.max(self.QTable[s2])
+        Q_s2 = self.df * np.max(self.QTable[s2])
         self.QTriesTable[s1,action,measure] += 1
+        
         if measure:
-            self.QTable[s1,action,0] = (previousQ*previousTries + Q_s2 + reward) / (previousTries+1)
-            self.QTable[s1,action,1] = (previousQ*previousTries + Q_s2 + reward - 0.01) / (previousTries+1)
+            self.QTable[s1,action,1] = (1-self.lr) * self.QTable[s1,action,1] + self.lr * (Q_s2 + reward - self.measureCost)
+            self.QTable[s1,action,0] = (1-self.lr) * self.QTable[s1,action,0] + self.lr * (Q_s2 + reward)
         else:
-            self.QTable[s1,action,0] = (previousQ*previousTries + Q_s2 + reward) / (previousTries+1)
+            self.QTable[s1,action,1] = (1-self.lr) * self.QTable[s1,action,1] + self.lr * (Q_s2 + reward - self.measureCost)
+            self.QTable[s1,action,0] = (1-self.lr) * self.QTable[s1,action,0] + self.lr * (Q_s2 + reward)
+            
+        # if measure:
+        #     self.QTable[s1,action,0] = (previousQ*previousTries + Q_s2 + reward) / (previousTries+1)
+        #     self.QTable[s1,action,1] = (previousQ*previousTries + Q_s2 + reward - 0.01) / (previousTries+1)
+        # else:
+        #     self.QTable[s1,action,0] = (previousQ*previousTries + Q_s2 + reward) / (previousTries+1)
+        #     self.QTable[s1,action,1] = (previousQ*previousTries + Q_s2 + reward - 0.01) / (previousTries+1)
         #print("Current Q_table segment:"+str(self.QTable[s1,action,measure]))
 
     def guess_current_State(self,s,action):
@@ -117,7 +128,7 @@ class AMRL_Agent:
             rewards[i], steps[i], ms[i] = self.train_epoch()
             if self.turn_greedy and i/nmbr_epochs > self.greedy_turnpoint:
                 self.be_greedy = True
-        #print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
+        print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
         if get_intermediate_results:
             return (self.totalReward, rewards, steps, ms)
         return self.totalReward

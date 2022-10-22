@@ -23,9 +23,9 @@ fileName = args.file
 
 Data_path       = "Data/Run1/"
 
-alg_names = ["AMRL", "BAM-QMDP", "BAM-QMDP+"]
-env_name        = "semi-slippery frozen lake environment"
-Env_fileName    = "LakeBigNonDetv2"
+alg_names = ["AMRL", "AMRLV2", "AMRLV3"]
+env_name        = "measurement regret environment"
+Env_fileName    = "Loss"
 ending_filename = "Run1.txt"
 Files_legend    = ["AMRL-Q","BAM-QMDP","BAM-QMDP+" ]
 
@@ -52,7 +52,7 @@ import math as m
 import matplotlib.pyplot as plt
 import datetime
 from scipy.signal import savgol_filter
-w1, w2 = 250,2 #vars for smooting out plots
+w1, w2 = 50,2 #vars for smooting out plots
 timestamp = datetime.datetime.now().strftime("%d%m%Y%H%M%S")
 
 # Plot Naming
