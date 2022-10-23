@@ -114,6 +114,6 @@ class QDyna(QBasic):
     def simulate_step(self,s,action):
         snext = np.random.choice(self.StateSize, p=self.T[s,action])
         r = self.R_counter[s,action]/np.sum(self.T_counter[s,action])
-        r -= self.MeasureCost
+        #r -= self.MeasureCost
         self.update_Q(s,action,r,snext, isReal=False) #NO COST!!!
         

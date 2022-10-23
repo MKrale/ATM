@@ -108,7 +108,7 @@ if env_variant != 'None':
 
 # Lake Envs
 s_init                          = 0
-MeasureCost_Lake_default        = 0.01
+MeasureCost_Lake_default        = 0.05
 MeasureCost_Taxi_default        = 0.01 / 20
 MeasureCost_Chain_default       = 0.05
 remake_env                      = False
@@ -192,6 +192,8 @@ def get_env():
                                         StateSize = 20
                                 case '30':
                                         StateSize = 30
+                                case '50':
+                                        StateSize = 50
                                 case other: # default
                                         print("env_map not recognised!")
                                         StateSize = 20

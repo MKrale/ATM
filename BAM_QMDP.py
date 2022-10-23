@@ -34,7 +34,7 @@ class BAM_QMDP:
         # Meta-variables:
         self.eta = eta                              # Chance of picking a non-greedy action (should be called epsilon...)
         self.nmbr_particles = nmbr_particles        # Number of particles used to represent the belief state.
-        self.NmbrOptimiticTries = 25                # Meta variable determining for how many tries a transition should be biased.
+        self.NmbrOptimiticTries = 5                # Meta variable determining for how many tries a transition should be biased.
         self.selfLoopPenalty = 0.95                 # Penalty applied to Q-value for self loops (1 means no penalty)
         self.lossBoost = 1                          # Testing variable to boost the effect of Measurement Loss/Regret (1 means no boost)
         self.stopPenalty = 0.0                      # Penalty aplied to Q-values achieved in the last step (0 means no penalty)
@@ -64,7 +64,7 @@ class BAM_QMDP:
         # Arrays keeping track of model:
         
         # Value Estimation Tables
-        self.QTable             = np.ones ( (self.StateSize, self.ActionSize), dtype=np.longfloat ) * self.optimisticPenalty    # Q-table as used by other functions, includes initial bias
+        self.QTable             = np.ones ( (self.StateSize, self.ActionSize), dtype=np.longfloat )* self.optimisticPenalty    # Q-table as used by other functions, includes initial bias
 
         self.QTableUnbiased     = np.zeros( (self.StateSize, self.ActionSize), dtype=np.longfloat )                             # Q-table based solely on experience (unbiased)
                                                                                          
@@ -173,6 +173,10 @@ class BAM_QMDP:
             self.steps_taken    += 1
             self.totalSteps     += 1
             
+            # if self.steps_taken > self.StateSize:
+            #     print(self.steps_taken)
+            #     print(s,action,measure, b_next)
+            
         ### END LOOP ###
         self.totalReward += self.episodeReward
         returnVars = (self.episodeReward, self.steps_taken, self.measurements_taken)
@@ -184,10 +188,18 @@ class BAM_QMDP:
         self.init_run_variables()
         epreward,epsteps,epms = np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes))
         for i in range(nmbr_episodes):
-            if (i > 0 and i%100 == 0 and logmessages):
+            log_nmbr = 100
+            if (i > 0 and i%log_nmbr == 0 and logmessages):
+                for s in range(self.StateSize):
+                    if s % 16 == 0:
+                        print("==================================")
+                    
+                    print(self.alpha_sum[s]-1)
+                    
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
-                        i, nmbr_episodes, np.average(epreward[(i-100):i]), np.average(epsteps[(i-100):i]), np.average(epms[(i-100):i]) ) )
-                #print(self.alpha, self.QTable)
+                        i, nmbr_episodes, np.average(epreward[(i-log_nmbr):i]), np.average(epsteps[(i-log_nmbr):i]), np.average(epms[(i-log_nmbr):i]) ) )
+                
+                    
             epreward[i], epsteps[i], epms[i]  = self.run_episode()
                 
         if print_info:
@@ -221,7 +233,7 @@ Unbiased QTable: {}
         Loss = 0
         for s in S:
             p = S[s]
-            QTable_max = max (np.max(self.QTable[s]), np.max(self.QTableUnbiased[s])) # expected return if we were in state s
+            QTable_max = np.max(self.QTable[s]) # expected return if we were in state s
             Loss +=  p * max( 0.0, QTable_max - self.QTableUnbiased[s,action] )
         return Loss
     
@@ -388,9 +400,9 @@ Unbiased QTable: {}
                 #totQ = (previousQ*previousTries + (p1 * (self.df*thisQ + reward)) ) / (previousTries+p1) # Dynamic learning rate
             else: 
                 thisLR = self.lr * p1
-                totQUnbiased = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQUnbiased)
-                totQ = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQ)
-            self.QTableUnbiased[s1,action] =  totQ
+                totQUnbiased =  (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df * thisQ) # NOW ALSO WITHOUT DF!
+                totQ = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQ) 
+            self.QTableUnbiased[s1,action] =  totQUnbiased
             
             # Update QTries & R only if real action
             if isReal and len(S2) == 1 and len(S1) == 1:
@@ -402,14 +414,14 @@ Unbiased QTable: {}
             thisAlpha = np.sum(self.alpha[s1,action]) + p1
             #print(thisAlpha)
             #print(s1,action,S2, self.QTable[s1,action], self.QTableUnbiased[s1,action])
-            if thisAlpha > self.NmbrOptimiticTries and self.optimism_type != "UCB":
+            if thisAlpha >= self.NmbrOptimiticTries and self.optimism_type != "UCB":
                 self.QTable[s1,action] = totQ
                 #print(totQ)
             else:
                 match self.optimism_type:
                     case "RMAX+":
                         #print(" Help?")
-                        self.QTable[s1,action] = totQUnbiased + max(0,1-totQUnbiased) * (self.NmbrOptimiticTries - thisAlpha) / self.NmbrOptimiticTries
+                        self.QTable[s1,action] = totQ + max(0,1-totQ) * ( (self.NmbrOptimiticTries - thisAlpha) / self.NmbrOptimiticTries)
                         #self.QTable[s1,action] = (thisAlpha*totQUnbiased + self.optimisticPenalty*(self.NmbrOptimiticTries - thisAlpha)) / max(self.NmbrOptimiticTries, thisAlpha)
                     case "UCB":
                         optTerm = np.sqrt(2 * np.log10(self.totalSteps+2) / (self.QCounter+1)) # How do we do this +2 cleanly?
