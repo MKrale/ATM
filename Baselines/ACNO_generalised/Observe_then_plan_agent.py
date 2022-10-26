@@ -7,7 +7,7 @@ from pomdpy.pomdp.history import Histories, HistoryEntry
 from ACNO_generalised.ACNO_ENV import ACNO_ENV
 
 
-class ACNO_Agent:
+class ACNO_Agent_OTP:
     
     def __init__(self, env=ACNO_ENV):
         self.model = env
@@ -32,7 +32,7 @@ class ACNO_Agent:
         rewards, steps, measurements = np.zeros(nmbr_episodes), np.zeros(nmbr_episodes), np.zeros(nmbr_episodes)
         
         # Run exploration phase
-        self.explore_episodes = m.ceil(nmbr_episodes / 2)
+        self.explore_episodes = nmbr_episodes-100
         exp_eps = self.explore_episodes #readibilty re-define
         rewards[:exp_eps], steps[:exp_eps] = self.model.sample_model(self.explore_episodes)
         measurements[:exp_eps] = steps[:exp_eps]

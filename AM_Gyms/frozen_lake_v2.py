@@ -136,17 +136,19 @@ class FrozenLakeEnv_v2(Env):
                 for a in range(4):
                     li = self.P[s][a]
                     letter = desc[row, col]
+                    # If this state is goal or Hole, we do this (?)
                     if letter in b"GH":
-                        li.append((1.0, s, 0, True))
+                        li.append((1.0, *update_probability_matrix(row, col, a)))
                     else:
                         if is_slippery:
-                            li.append(( 1.0 / 2.0, *update_probability_matrix(row, col, a) ))
                             (row_2, col_2) = inc(row,col,a)
-                            s_2 = to_s(row_2,col_2)
-                            letter_2 = desc[row_2, col_2]
-                            if letter_2 in b"GH":
-                                li.append((1.0/2.0, s, 0, True))
+                            letter2 = desc[row_2, col_2]
+                            # If next state a hole or goal, we always go there
+                            if letter2 in b"GH":
+                                li.append((1.0, *update_probability_matrix(row, col, a)))
+                            # if not, we have a 50/50 chance to either take 1 or two steps
                             else:
+                                li.append(( 1.0 / 2.0, *update_probability_matrix(row, col, a) ))
                                 li.append(( 1.0 / 2.0, *update_probability_matrix(row_2, col_2, a) ))
 
                         else:

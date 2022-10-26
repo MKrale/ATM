@@ -21,7 +21,7 @@ class ACNO_ENV():
         self.StateSize, self.ActionSize, self.cost, self.s_init, self.doneState = self.env.get_vars()
         self.CActionSize = self.ActionSize // 2  #both measuring & non-measuring actions
         self.EmptyObservation = -1
-        self.donePenalty = 0.0
+        self.donePenalty = 0.1
         self.selfLoopPenalty = 0.1
         
         #Set up model (Blank!)
@@ -32,17 +32,23 @@ class ACNO_ENV():
         # Other POMCP-variables
         self.solver = 'POMCP'
         self.n_start_states = 200
-        self.ucb_coefficient = 5 #no optimism required
+        self.ucb_coefficient = 25 
         self.seed = np.random.seed() 
         self.min_particle_count = 18
         self.max_particle_count = 22
-        self.max_depth = 30
+        self.max_depth = 25
         self.action_selection_timeout = 600_000
         self.particle_selection_timeout = 2
-        self.n_sims = 10_000
+        self.n_sims = 25_000
         self.preferred_actions = False
-        self.timeout = 7_200_000
+        self.timeout = 7_200_000_000_000 # Just in case...
         self.discount = 0.95
+        
+        # Observe_while_planning vars
+        self.epsilon_start = 1
+        self.epsilon_minimum = 0.1
+        self.epsilon_decay = 0.99
+        self.max_steps = self.StateSize * 10
         
         
         self.sampling_rewards = []
@@ -57,7 +63,15 @@ class ACNO_ENV():
         rewards, steps = self.env.sample(episodes)
         self.T, self.R, self.R_biased = self.env.get_model()
         return rewards, steps
+    
+    def sample_model_empty(self):
+        self.env.sample(0, modify = False)
+        self.T, self.R, self.R_biased = self.env.get_model()
         
+    def update_model(self,s_prev, a, s_next, reward):
+        self.env.update_step(s_prev,a,s_next,reward + self.cost)
+        self.env.add_costs()
+        self.T, self.R, self.R_biased = self.env.get_model()
         
     
     def reset():
@@ -101,7 +115,6 @@ class ACNO_ENV():
         done = False
         if next_state == self.doneState:
             done = True
-            #reward = 0
         return next_state, reward, done
     
     def take_real_step(self, action, ignoreMeasuring = False):
@@ -129,7 +142,7 @@ class ACNO_ENV():
             state = state.position
         
         # Simulate a step:
-        rollout = False
+        #rollout = False
         (next_state, reward, done) = self.model_step(state, action, rollout)
         
         # Deal with measuring/not measuring
@@ -168,10 +181,10 @@ class ACNO_ENV():
     def create_action_pool(self):
          return DiscreteActionPool(self)
      
-    def get_all_actions(self, noMeasuring=False):
+    def get_all_actions(self, includeMeasuring=True):
         '''Return all possible actions in BoxAction-format'''
         all_actions = []
-        if noMeasuring:
+        if not includeMeasuring:
             for i in range(self.CActionSize):
                 all_actions.append(BoxAction(i))
         else:
@@ -179,8 +192,8 @@ class ACNO_ENV():
                 all_actions.append(BoxAction(i))
         return all_actions
 
-    def get_legal_actions(self, state):
-        return self.get_all_actions()
+    def get_legal_actions(self, state, includeMeasuring = True):
+        return self.get_all_actions(includeMeasuring)
     
     def get_rollout_actions(self, state):
         return self.get_all_actions(self, state, noMeasuring=True)

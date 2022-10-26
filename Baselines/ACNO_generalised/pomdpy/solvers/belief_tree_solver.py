@@ -98,7 +98,7 @@ class BeliefTreeSolver(Solver):
         # rollout each action once
         for i in range(legal_actions.__len__()):
             state = belief_node.sample_particle()
-            action = legal_actions[i % legal_actions.__len__()]
+            action = legal_actions[i % legal_actions.__len__()]            
 
             # model.generate_step casts the variable action from an int to the proper DiscreteAction subclass type
             # (*** CHANGE ***)
@@ -109,15 +109,13 @@ class BeliefTreeSolver(Solver):
                 child_node, added = belief_node.create_or_get_child(step_result.action, step_result.observation)
                 child_node.state_particles.append(step_result.next_state)
                 delayed_reward = self.rollout(child_node)
-            else:
-                delayed_reward = 0
 
             action_mapping_entry = belief_node.action_map.get_entry(step_result.action.bin_number)
 
-            q_value = action_mapping_entry.mean_q_value
-
             # Random policy
-            q_value += (step_result.reward + self.model.discount * delayed_reward - q_value)
+            q_value = (step_result.reward + self.model.discount * delayed_reward)
+            # if delayed_reward != 0:
+            #     print ("IN ROLLOUTSEARCH:", q_value)
 
             action_mapping_entry.update_visit_count(1)
             action_mapping_entry.update_q_value(q_value)
@@ -136,7 +134,7 @@ class BeliefTreeSolver(Solver):
         state = belief_node.sample_particle()
         is_terminal = False
         discounted_reward_sum = 0.0
-        discount = 1.0
+        discount = 1
         num_steps = 0
 
         while num_steps < self.model.max_depth and not is_terminal:
@@ -150,9 +148,11 @@ class BeliefTreeSolver(Solver):
             # advance to next state
             state = step_result.next_state
             # generate new set of legal actions from the new state
-            legal_actions = self.model.get_legal_actions(state)
+            legal_actions = self.model.get_legal_actions(state, includeMeasuring=False)
             num_steps += 1
 
+        # if discounted_reward_sum != 0:
+        #     print ("IN ROLLOUT:", discounted_reward_sum)
         return discounted_reward_sum
 
     def update(self, step_result, prune=True):

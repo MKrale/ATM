@@ -21,7 +21,7 @@ class PositionData(HistoricalData):
                 legal_actions.append(i)
         else: #as used for rollouts:
             for i in range(self.model.CActionSize):
-                legal_actions.append(i)
+                legal_actions.append(i+self.model.CActionSize)
         return legal_actions
 
     def shallow_copy(self):

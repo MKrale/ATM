@@ -29,8 +29,8 @@ import os
 # Agents
 import Baselines.AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
-from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent
-#from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent
+from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
+from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
 from Baselines.DRQN import DRQN_Agent
 from Baselines.DynaQ import QBasic, QOptimistic, QDyna
 
@@ -151,6 +151,10 @@ def get_env():
                                         StateSize = 16**2
                                         map_name = None
                                         desc = generate_random_map(size=16)
+                                case "random20":
+                                        StateSize = 20**2
+                                        map_name = None
+                                        desc = generate_random_map(size=20)
                                 case "random 24":
                                         StateSize = 24**2
                                         map_name = None
@@ -247,12 +251,15 @@ def get_agent():
                 case "AMRL_greedy":
                         agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
                 case "BAM_QMDP":
-                        agent = BAM_QMDP(ENV, update_globally=False)
+                        agent = BAM_QMDP(ENV)
                 case "BAM_QMDP+":
                         agent = BAM_QMDP(ENV)
-                case "ACNO_POMCP":
+                case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
-                        agent = ACNO_Agent(ENV_ACNO)
+                        agent = ACNO_Agent_OWP(ENV_ACNO)
+                case "ACNO_OTP":
+                        ENV_ACNO = ACNO_ENV(ENV)
+                        agent = ACNO_Agent_OTP(ENV_ACNO)
                 case "DRQN":
                         agent = DRQN_Agent(ENV)
                 case "QBasic":
@@ -264,13 +271,6 @@ def get_agent():
                 case other:
                         print("Agent not recognised, please try again!")
         return agent
-
-"""" 
-Possible Extentions: 
-        * ACNO's
-        * BAM_QMDP with different settings
-        * AMRL which switches to completely greedy after initialisation
-"""
 
 ######################################################
         ###     Exporting Results       ###
@@ -291,8 +291,8 @@ def export_data(rewards, steps, measures,  t_start):
                         'reward_per_eps'        :rewards,
                         'steps_per_eps'         :steps,
                         'measurements_per_eps'  :measures,
-                        'start_time'            :PR_to_data(t_start),
-                        'current_time'          :PR_to_data(t.perf_counter())
+                        'start_time'            :t_start,
+                        'current_time'          :t.perf_counter()
                 }, outfile, cls=NumpyEncoder)
 
 
@@ -301,7 +301,7 @@ def export_data(rewards, steps, measures,  t_start):
 ######################################################
 
 rewards, steps, measures = np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps))
-t_start = t.perf_counter()
+t_start = 0 + t.perf_counter()
 print("""
 Start running agent with following settings:
 Algorithm: {}

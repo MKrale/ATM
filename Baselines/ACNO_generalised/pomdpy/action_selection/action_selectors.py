@@ -3,7 +3,7 @@ import numpy as np
 
 
 # UCB1 action selection algorithm
-def ucb_action(mcts, current_node, greedy, prefer_over_value = 0):
+def ucb_action(mcts, current_node, greedy, filterUnder = 0):
     best_actions = []
     best_q_value = -np.inf
     mapping = current_node.action_map
@@ -16,10 +16,10 @@ def ucb_action(mcts, current_node, greedy, prefer_over_value = 0):
     for action_entry in actions:
 
         # Skip illegal actions
-        if not action_entry.is_legal:
+        if not action_entry.is_legal or action_entry.bin_number < filterUnder:
             continue
 
-        current_q = action_entry.max_q_value
+        current_q = max(action_entry.mean_q_value, action_entry.mean_q_nonmeasuring)
 
         # If the UCB coefficient is 0, this is greedy Q selection
         if not greedy:
@@ -47,15 +47,6 @@ def ucb_action(mcts, current_node, greedy, prefer_over_value = 0):
     #             newActionList.append(action_entry.get_action())
     #     best_actions = newActionList
     # at each iteration print out 16 action (mean q values)
-    
-    # Try filter non-prefered actions
-    if prefer_over_value > 0:
-        newActionList = []
-        for action in best_actions:
-            if action.bin_number >= prefer_over_value:
-                newActionList.append(action)
-        if newActionList.__len__() > 0:
-            best_actions = newActionList
             
     return random.choice(best_actions)
 

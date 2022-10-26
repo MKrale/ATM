@@ -107,8 +107,7 @@ class POMCP(BeliefTreeSolver):
         """
         return self.traverse(belief_node, 0, start_time)
 
-    def traverse(self, belief_node, tree_depth, start_time):
-        delayed_reward = 0
+    def traverse(self, belief_node, tree_depth, start_time, allowMeasuring=True):
 
         state = belief_node.sample_particle()
 
@@ -116,44 +115,68 @@ class POMCP(BeliefTreeSolver):
         if time.time() - start_time > self.model.action_selection_timeout:
             console(4, module, "action selection timeout")
             return 0
-
-        action = ucb_action(self, belief_node, False, prefer_over_value=self.model.CActionSize)
-
-        # Search horizon reached
-        if tree_depth >= self.model.max_depth:
-            console(4, module, "Search horizon reached")
-            return 0
-        step_result, is_legal = self.model.generate_step(state, action)
-
-        child_belief_node = belief_node.child(action, step_result.observation)
-        if child_belief_node is None and not step_result.is_terminal and belief_node.action_map.total_visit_count > 0:
-            child_belief_node, added = belief_node.create_or_get_child(action, step_result.observation)
-
-        if not step_result.is_terminal or not is_legal:
-            tree_depth += 1
-            if child_belief_node is not None:
-                # Add S' to the new belief node
-                # Add a state particle with the new state
-                if child_belief_node.state_particles.__len__() < self.model.max_particle_count:
-                    child_belief_node.state_particles.append(step_result.next_state)
-                delayed_reward = self.traverse(child_belief_node, tree_depth, start_time)
-            else:
-                delayed_reward = self.rollout(belief_node)
-            tree_depth -= 1
+        if allowMeasuring:
+            action_measuring = ucb_action(self, belief_node, False)
+            action_nonmeasuring = ucb_action(self, belief_node, False, filterUnder = self.model.CActionSize)
+            actions = [action_nonmeasuring, action_measuring]
         else:
-            console(4, module, "Reached terminal state.")
+            action_nonmeasuring = ucb_action(self, belief_node, False, filterUnder = self.model.CActionSize)
+            actions = [action_nonmeasuring]
+
+        best_delayed_reward, best_i= -np.inf, 0
+        all_step_result = []
+        for (i,action) in enumerate(actions):
+            # Search horizon reached
+            if tree_depth >= self.model.max_depth:
+                console(4, module, "Search horizon reached")
+                return 0
+
+            step_result, is_legal = self.model.generate_step(state, action)
+            all_step_result.append(step_result)
+
+            child_belief_node = belief_node.child(action, step_result.observation)
+            
+            if child_belief_node is None and not step_result.is_terminal and belief_node.action_map.total_visit_count > 0:
+                child_belief_node, added = belief_node.create_or_get_child(action, step_result.observation)
+
+            if not step_result.is_terminal or not is_legal:
+                tree_depth += 1
+                if child_belief_node is not None:
+                    # Add S' to the new belief node
+                    # Add a state particle with the new state
+                    if child_belief_node.state_particles.__len__() < self.model.max_particle_count:
+                        child_belief_node.state_particles.append(step_result.next_state)
+                    if i==1:
+                        this_delayed_reward = self.traverse(child_belief_node, tree_depth, start_time)
+                    else:
+                        this_delayed_reward = self.traverse(child_belief_node, tree_depth, start_time, allowMeasuring=False)
+                    
+                else:
+                    this_delayed_reward = self.rollout(belief_node)
+                tree_depth -= 1
+            else:
+                console(4, module, "Reached terminal state.")
+                this_delayed_reward = 0
+            
+            if this_delayed_reward > best_delayed_reward:
+                best_delayed_reward = this_delayed_reward
+                best_i = i
 
         # delayed_reward is "Q maximal"
         # current_q_value is the Q value of the current belief-action pair
+        
+        
+        action, step_result = actions[best_i], all_step_result[best_i]
         action_mapping_entry = belief_node.action_map.get_entry(action.bin_number)
-
-        q_value = action_mapping_entry.mean_q_value
+        
+        # if best_delayed_reward != 0 :
+        #     print ("IN TRAVERSE: q = {}, for action = {}".format(best_delayed_reward, action.bin_number) )
 
         # off-policy Q learning update rule
-        q_value += (step_result.reward + (self.model.discount * delayed_reward) - q_value)
+        q_value = (step_result.reward + (self.model.discount * best_delayed_reward))
 
-        action_mapping_entry.update_visit_count(1)
-        action_mapping_entry.update_q_value(q_value)
+        action_mapping_entry.update_visit_count(1, allowMeasuring)
+        action_mapping_entry.update_q_value(q_value, allowMeasuring)
 
         # Add RAVE ?
         return q_value

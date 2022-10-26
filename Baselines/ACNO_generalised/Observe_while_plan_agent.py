@@ -30,7 +30,7 @@ _eval = False
 #             7: '1A_1E_1V',
 #             }
 
-class ACNO_Agent:
+class ACNO_Agent_OWP:
     """
     Agent for running the ACNO-POMCP algorithm. 
     Edited from https://github.com/nam630/acno_mdp to work for any openAI environment.
@@ -67,6 +67,7 @@ class ACNO_Agent:
         rewards, steps, measurements = np.zeros(epochs), np.zeros(epochs), np.zeros(epochs)
         temp = None
         self.model.reset_for_epoch()
+        self.model.sample_model_empty()
         for i in range(epochs):
             # Reset the epoch stats3
             start = time.time()
@@ -102,12 +103,6 @@ class ACNO_Agent:
         '''Runs the ACNO-POMCP algorithm untill the goal or the maximum number of steps is reached'''
         epoch_start = time.time()
         
-        # Import previous model variables
-        old_t = self.model.t_counts # StateSize x CActionSize x StateSize
-        old_r = self.model.r_counts # StateSize x CActionSize
-        old_n = self.model.n_counts
-        #old_n = np.maximum(self.model.n_counts, np.ones(old_r.shape)) # StateSize x CActionSize
-        
         # Periodic logging:
         if not observe_then_plan and (epoch % 100 == 0):
             np.save(open(DIR+'{}/epoch{}_T.npy'.format(SAVE_K, epoch), 'wb'), old_t)
@@ -124,11 +119,9 @@ class ACNO_Agent:
             solver = self.solver_factory(self)
             solver.fast_UCB = temp
         
-        # Update solver according to previous epoch(s)
-        solver.model.t_estimates = old_t / old_n[:,:,np.newaxis]
-        solver.model.r_estimates = old_r / old_n
         
         # Monte-Carlo start state
+        self.model.reset_for_epoch()
         state = solver.belief_tree_index.sample_particle()
         
         #initialise epoch variables
@@ -142,39 +135,31 @@ class ACNO_Agent:
 
             # Decide greedy step, according to solver
             action = solver.select_eps_greedy_action(eps, start_time, greedy_select=(not _eval))
-            mdp = bool(self.model.solver == 'MCP')
+            
+            if action.bin_number > self.model.CActionSize and np.random.rand() < eps:
+                action.bin_number -= self.model.CActionSize
+            
             
             # Take step & update local variables
             # Note: step results only used internally!
-            step_result, is_legal = self.model.generate_step(state, action, _true=True, is_mdp=mdp)
+            thisReward, obs, done = self.model.take_real_step(action.bin_number)
             start_time = time.time()
             
             # If previous state known and measuring:
-            if action.bin_number < self.model.c_actions:
+            if action.bin_number < self.model.CActionSize:
                 nmbr_measurements += 1
                 if past_obs != self.model.states_n : 
                     # Update model counters
                     #print("Learning!")
                    # print((past_obs, action.bin_number % self.model.c_actions, step_result.observation.position))
-                    self.model.n_counts[past_obs, action.bin_number % self.model.c_actions] += 1
-                    #print(self.model.n_counts)
-                    self.model.r_counts[past_obs, action.bin_number % self.model.c_actions] += step_result.reward
-                    self.model.t_counts[past_obs, action.bin_number % self.model.c_actions, step_result.observation.position] += 1
-                    
-                    self.model.n_counts[past_obs, action.bin_number ] += 1
-                    self.model.r_counts[past_obs, action.bin_number ] += step_result.reward # - self.model.cost #we don't pay measure cost when not measuring
-                    self.model.t_counts[past_obs, action.bin_number , step_result.observation.position] += 1
-                    
-                    solver.model.t_estimates = self.model.t_counts / self.model.n_counts[:,:,np.newaxis]
-                    solver.model.r_estimates = self.model.r_counts / self.model.n_counts
+                    self.model.update_model(past_obs,action.bin_number, obs, thisReward)
             
             # Update variables
-            discounted_reward += discount * (step_result.reward)
-            reward += step_result.reward
-            past_obs = step_result.observation.position
+            discounted_reward += discount * (thisReward)
+            reward += thisReward
+            past_obs = obs
             start_time = time.time()
             discount *= self.model.discount # model discount = 0.7
-            state = step_result.next_state # Note: real state not used by solver!
             
             # Update epsilon every episode
             if eps > self.model.epsilon_minimum:
@@ -183,17 +168,20 @@ class ACNO_Agent:
             # Update solver & history
             # if not step_result.is_terminal or not is_legal:
             #     solver.update(step_result)
-                
-            solver.update(step_result)
+            print(action.bin_number, obs, thisReward)
+            
+            step_result = self.model.to_StepResult(action.bin_number, obs, obs, thisReward, done)
+            if not done:
+                solver.update(step_result)
             
             new_hist_entry = solver.history.add_entry()
-            HistoryEntry.update_history_entry(new_hist_entry, step_result.reward, step_result.action, step_result.observation, step_result.next_state)
+            HistoryEntry.update_history_entry(new_hist_entry, thisReward, action, obs, obs)
             
             # Printing & Logging:            
             # print("true state in epoch:", state.position)
             # self.display_step_result(i, step_result)
             # print(step_result.is_terminal)
-            if step_result.is_terminal or not is_legal:
+            if done:
             #     console(3, module, 'Terminated after episode step ' + str(i + 1))
                 break
         
@@ -213,13 +201,10 @@ class ACNO_Agent:
         # solver.history.show()
         # self.results.show(epoch)
         print ("{} / {} runs complete (current reward = {}, nmbr steps = {}, nmbr measurements = {})".format( epoch, self.model.n_epochs, reward, i+1, nmbr_measurements ))
-        if reward >0:
-            print (self.model.r_counts)
         # console(3, module, 'Total possible undiscounted return: ' + str(self.model.get_max_undiscounted_return()))
         # print_divider('medium')
         # print(discounted_reward)
         # print(i)
-        mask = self.model.r_counts[self.model.r_counts>0]
         #print(self.model.r_counts, self.model.n_counts, self.model.r_estimates)
 
         return reward, i, nmbr_measurements, eps, discounted_reward, temp

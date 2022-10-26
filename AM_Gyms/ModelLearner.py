@@ -16,21 +16,23 @@ class ModelLearner():
         self.ActionSize = self.CActionSize * 2  #both measuring & non-measuring actions
         self.EmptyObservation = self.StateSize +100
         self.doneState = self.StateSize -1
-        self.loopPenalty = self.cost
-        self.donePenalty = self.cost
+        self.loopPenalty = 0 #self.cost
+        self.donePenalty = 0 #self.cost
         
         self.init_model()
 
     def init_model(self):
         # Model tables:
         self.counter = np.zeros((self.StateSize, self.ActionSize)) + 1
-        self.T = np.zeros((self.StateSize, self.ActionSize, self.StateSize))
         self.T_counter = np.zeros((self.StateSize, self.ActionSize, self.StateSize)) + 1/self.StateSize
         self.T_counter[self.doneState,:,:] = 0
         self.T_counter[self.doneState,:,self.doneState] = 1
-        self.R = np.zeros((self.StateSize, self.ActionSize))
-        self.R_biased = np.zeros((self.StateSize, self.ActionSize))
+        self.T = self.T_counter / self.counter[:,:,np.newaxis]
+        
+        
         self.R_counter = np.zeros((self.StateSize, self.ActionSize))
+        self.R = self.R_counter / np.maximum(self.counter-1,1)
+        self.R_biased = self.R_counter / np.maximum(self.counter-1,1) #Not yet biased...
         
         # Variables for learning:
         self.Q = 1/self.counter[:,:self.CActionSize]
@@ -65,7 +67,7 @@ class ModelLearner():
             costs[:,a] -= selfprob*self.loopPenalty + doneprob*self.donePenalty
         self.R_biased += costs
     
-    def sample(self, N, max_steps = 500, logging = True, includeCosts = True):
+    def sample(self, N, max_steps = 500, logging = True, includeCosts = True, modify = True):
         """Learns the model using N episodes, returns episodic costs and steps"""
         # Intialisation
         self.init_model()
@@ -74,11 +76,11 @@ class ModelLearner():
         
         for eps in range(N):
             self.sample_episode(eps, max_steps)
-            if eps % 100 == 0 and logging:
+            if (eps+1) % 100 == 0 and logging:
                 print("{} exploration episodes completed!".format(eps))
-        self.filter_T()
-        self.add_costs()
-        print(self.R_biased)
+        if modify:
+            self.filter_T()
+            self.add_costs()
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):
