@@ -99,7 +99,8 @@ class ModelLearner():
                 s = self.doneState
             else:
                 (s, cost) = self.env.measure()
-                
+            
+            print(a,s)
             # Update logging variables
             self.sampling_rewards[episode] += reward - self.cost
             self.sampling_steps[episode] += 1

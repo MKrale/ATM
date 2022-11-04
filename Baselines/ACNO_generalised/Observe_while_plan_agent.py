@@ -1,3 +1,10 @@
+"""
+Implementation of the Observe-while-Planning algorithm described by Nam et al (2021).
+I gave up on using this method, so use at your own risk!
+"""
+
+
+
 from __future__ import print_function, division
 import time
 import logging
@@ -18,20 +25,9 @@ if not os.path.exists(DIR + SAVE_K):
 
 _eval = False
 
-# def action_dictionary():
-#     return {
-#             0: '0A_0E_0V',
-#             1: '0A_0E_1V',
-#             2: '0A_1E_0V',
-#             3: '0A_1E_1V',
-#             4: '1A_0E_0V',
-#             5: '1A_0E_1V',
-#             6: '1A_1E_0V',
-#             7: '1A_1E_1V',
-#             }
-
 class ACNO_Agent_OWP:
     """
+    WARNING: NOT FULLY TESTED
     Agent for running the ACNO-POMCP algorithm. 
     Edited from https://github.com/nam630/acno_mdp to work for any openAI environment.
 

@@ -1,3 +1,9 @@
+"""
+File containing code for DRQN, a generic RL POMDP algorithm. Currently unused and untested, so use at own risk!
+"""
+
+
+
 from collections import deque
 from multiprocessing.forkserver import MAXFDS_TO_SEND
 import random

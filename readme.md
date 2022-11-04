@@ -7,19 +7,17 @@ Repository containing code for BAM-QMDP, and gathered data, as used in the paper
 This repository contains the following files:
 
 Code:
-  - **AMRL_Agent.py**        : The AMRL-Q agent as a python-class(as defined by Bellinger et al, 2020)
-  - **AM_Env_wrapper.py**     : Wrapper to turn generic RL-environments into  AM environments
-  - **AMRL_variant_v3.py**    : The BAM-QMDP agent as a python class
-  - **Plot_Data.py**          : Code for plotting data
-  - **Run.py**                : Code for automatically running agents on environments & recording their data
+  - **BAM_QMDP.py**           : The BAM-QMDP agent as a python class.
+  - **Plot_Data.ipynb**       : Code for plotting data.
+  - **Run.py**                : Code for automatically running agents on environments & recording their data.
 
 Folders:
 
-  - **AM_Gyms**             : Contains Gym environments used for testing
-  - **Data**                : Contains data gathered on BAM-QMDP and AMRL-Q
-  - **Final_Plots**         : Contains plots of data in Data folder
+  - **AM_Gyms**             : Contains Gym environments used for testing, and wrapper class to make generic OpenAI envs into ACNO-MDP envs.
+  - **Data**                : Contains gahtered date for BNAIC and ICAPS-paper (including analysed data & standard plots).
+  - **Final_Plots**         : Contains compiled plots.
   - **Unused_Code**         : Contains code used in testing phase of BAM-QMPD, or previous version of code.
-  - **ACNO_generalised**    : Contains code from (https://github.com/nam630/acno_mdp), edited to work for any openAI environment. Used as baseline.
+  - **Baselines**    : Contains code for all baseline algorithms used in the paper or in the testing phase.
   
 ## How to run
 

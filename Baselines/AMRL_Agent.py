@@ -5,14 +5,14 @@ import numpy as np
 class AMRL_Agent:
     '''Creates a AMRL-Agent, as described in https://arxiv.org/abs/2005.12697'''
 
-    def __init__(self,env, eta=0.1, m_bias = 0.1, turn_greedy=True, greedy_turnpoint = 0.8):
+    def __init__(self,env, eta=0.1, m_bias = 0.1, turn_greedy=True, greedy_episodes = 100):
         #load all environment-specific variables
         self.env = env
         self.StateSize, self.ActionSize, self.measureCost, self.s_init = env.get_vars()
 
         #load all algo-specific vars (if provided)
         self.eta, self.m_bias = eta, m_bias
-        self.turn_greedy, self.greedy_turnpoint = turn_greedy, greedy_turnpoint
+        self.greedy_episodes, self.turn_greedy = greedy_episodes, turn_greedy
         self.be_greedy = False
         self.MeasureSize = 2
         self.init_Q = 0
@@ -53,10 +53,13 @@ class AMRL_Agent:
             else:
                 self.TransTable[s1,action,i] = (previousT*previousTries) / (previousTries+1)
 
-    def update_QTable(self, s1, action, measure, s2, reward):
+    def update_QTable(self, s1, action, measure, s2, reward, done):
         '''Updates Q Table according to action and reward'''
         previousQ, previousTries = self.QTable[s1,action,measure], self.QTriesTable[s1,action,measure]
-        Q_s2 = self.df * np.max(self.QTable[s2])
+        if done:
+            Q_s2 = 0
+        else:
+            Q_s2 = self.df * np.max(self.QTable[s2])
         self.QTriesTable[s1,action,measure] += 1
         
         if measure:
@@ -76,9 +79,9 @@ class AMRL_Agent:
 
     def guess_current_State(self,s,action):
         return (np.argmax(self.TransTable[s,action]))
+    
     def find_optimal_actionPair(self,s):
         '''Returns optimal actionPair according to Q-table'''
-        #print(self.QTable[s])
         return (np.unravel_index(np.argmax(self.QTable[s]), self.QTable[s].shape))
 
     def find_nonOptimal_actionPair(self,s):
@@ -108,7 +111,8 @@ class AMRL_Agent:
             else:
                 (reward, done) = self.env.step_no_measure(action)
                 s_next = self.guess_current_State(s_current, action)
-            self.update_QTable(s_current,action,measure,s_next, reward)
+            
+            self.update_QTable(s_current,action,measure,s_next, reward, done)
             s_current = s_next
             self.currentReward += reward - self.measureCost*measure #this could be cleaner...
             self.steps_taken += 1
@@ -126,7 +130,7 @@ class AMRL_Agent:
         rewards, steps, ms = np.zeros((nmbr_epochs)), np.zeros((nmbr_epochs)), np.zeros((nmbr_epochs))
         for i in range(nmbr_epochs):
             rewards[i], steps[i], ms[i] = self.train_epoch()
-            if self.turn_greedy and i/nmbr_epochs > self.greedy_turnpoint:
+            if self.turn_greedy and nmbr_epochs-i < self.greedy_episodes:
                 self.be_greedy = True
         print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
         if get_intermediate_results:

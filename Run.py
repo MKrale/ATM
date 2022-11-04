@@ -231,6 +231,7 @@ def get_env():
                         
         
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
+        args.m_cost = MeasureCost
         return ENV
         """" 
         Possible extentions: 
@@ -251,9 +252,9 @@ def get_agent():
                 case "AMRL_greedy":
                         agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
                 case "BAM_QMDP":
-                        agent = BAM_QMDP(ENV)
+                        agent = BAM_QMDP(ENV, offline_training_steps=0)
                 case "BAM_QMDP+":
-                        agent = BAM_QMDP(ENV)
+                        agent = BAM_QMDP(ENV, offline_training_steps=25)
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OWP(ENV_ACNO)

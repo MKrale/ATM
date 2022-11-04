@@ -109,6 +109,8 @@ class BeliefTreeSolver(Solver):
                 child_node, added = belief_node.create_or_get_child(step_result.action, step_result.observation)
                 child_node.state_particles.append(step_result.next_state)
                 delayed_reward = self.rollout(child_node)
+            else:
+                delayed_reward = 0
 
             action_mapping_entry = belief_node.action_map.get_entry(step_result.action.bin_number)
 

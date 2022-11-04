@@ -1,3 +1,8 @@
+"""
+File containing a number of basic RL-algorithms for MDPs, reworked for the ACNO-MDP setting.
+Currently unused and untested, so use at own risk!
+"""
+
 from AM_Gyms.ModelLearner import ModelLearner
 from AM_Gyms.AM_Env_wrapper import AM_ENV
 import numpy as np
