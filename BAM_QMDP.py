@@ -183,7 +183,7 @@ class BAM_QMDP:
         return returnVars  
             
 
-    def run(self, nmbr_episodes, get_full_results=False, print_info = True, logmessages = True):
+    def run(self, nmbr_episodes, get_full_results=False, print_info = False, logmessages = True):
         "Performs the specified number of episodes of BAM-QMDP."
         self.init_run_variables()
         epreward,epsteps,epms = np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes)), np.zeros((nmbr_episodes))

@@ -63,7 +63,8 @@ parser = argparse.ArgumentParser(description="Run tests on Active Measuring Algo
 parser.add_argument('-algo'             , default = 'AMRL',             help='Algorithm to be tested.')
 parser.add_argument('-env'              , default = 'Lake_small_det',   help='Environment on which to perform the testing')
 parser.add_argument('-env_var'          , default = 'None',             help='Variant of the environment to use (if applicable)')
-parser.add_argument('-env_map'          , default = 'None',             help='Size of the environment to use (if applicable)')
+parser.add_argument('-env_gen'          , default = 'None',             help='Size of the environment to use (if applicable)')
+parser.add_argument('-env_size'         , default = 0,                  help='Size of the environment to use (if applicable)')
 parser.add_argument('-m_cost'           , default = -1.0,               help='Cost of measuring (default: use as specified by environment)')
 parser.add_argument('-nmbr_eps'         , default = 500,                help='nmbr of episodes per run')
 parser.add_argument('-nmbr_runs'        , default = 1,                  help='nmbr of runs to perform')
@@ -77,7 +78,8 @@ args            = parser.parse_args()
 algo_name       = args.algo
 env_name        = args.env
 env_variant     = args.env_var
-env_map         = args.env_map
+env_size        = int(args.env_size)
+env_gen         = args.env_gen
 MeasureCost     = float(args.m_cost)
 nmbr_eps        = int(args.nmbr_eps)
 nmbr_runs       = int(args.nmbr_runs)
@@ -97,8 +99,9 @@ else:
 
 # Create name for Data file
 envFullName = env_name
-if env_map != 'None':
-        envFullName += "_"+env_map
+if env_size != 0:
+        envFullName += "_"+env_gen+str(env_size)
+
 if env_variant != 'None':
         envFullName += "_"+env_variant
 
@@ -116,6 +119,7 @@ remake_env                      = False
 def get_env(seed = None):
         global MeasureCost
         global remake_env
+        global env_size
         np.random.seed(seed)
         match env_name:
                 
@@ -123,50 +127,27 @@ def get_env(seed = None):
                         ActionSize, s_init = 4,0
                         if MeasureCost == -1:
                                 MeasureCost = MeasureCost_Lake_default
-                        match env_map:
-                                case 'None':
+                        match env_size:
+                                case 0:
+                                        print("Using standard size map (4x4)")
+                                        env_size = 4
                                         StateSize = 4**2
-                                        map_name = "4x4"
-                                        desc = None
-                                case "standard4":
-                                        StateSize = 4**2
-                                        map_name = "4x4"
-                                        desc = None
-                                case "standard8":
-                                        StateSize = 8**2
-                                        map_name = "8x8"
-                                        desc = None
-                                case "random4":
-                                        StateSize = 4**2
-                                        map_name = None
-                                        desc = generate_random_map(size=4)
-                                case "random8":
-                                        StateSize = 8**2
-                                        map_name = None
-                                        desc = generate_random_map(size=8)
-                                case "random12":
-                                        StateSize = 12**2
-                                        map_name = None
-                                        desc = generate_random_map(size=12)
-                                case "random16":
-                                        StateSize = 16**2
-                                        map_name = None
-                                        desc = generate_random_map(size=16)
-                                case "random20":
-                                        StateSize = 20**2
-                                        map_name = None
-                                        desc = generate_random_map(size=20)
-                                case "random 24":
-                                        StateSize = 24**2
-                                        map_name = None
-                                        desc = generate_random_map(size=24)
-                                case "random 32":
-                                        StateSize = 32**2
-                                        map_name = None
-                                        desc = generate_random_map(size=32)
                                 case other:
-                                        print("Environment map not recognized for Lake environments!")
-                                        exit()
+                                        StateSize = env_size**2
+                        match env_gen:
+                                case None:
+                                        print("Using random map")
+                                        map_name = None
+                                        desc = generate_random_map(size=env_size)
+                                case "random":
+                                        map_name = None
+                                        desc = generate_random_map(size=env_size)
+                                case "standard":
+                                        if env_size != 4 and env_size != 8:
+                                                print("Standard map type can only be used for sizes 4 and 8")
+                                        else:
+                                                map_name = "{}x{}".format(env_size, env_size)
+                                                desc = None
                         if map_name == None:
                                 remake_env = True
                         match env_variant:
@@ -179,7 +160,7 @@ def get_env(seed = None):
                                 case None:
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                                 case other: #default = deterministic
-                                        print("Environment var not recognised!")
+                                        print("Environment var not recognised! (using deterministic variant)")
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                         
                                         
@@ -190,7 +171,7 @@ def get_env(seed = None):
                                 MeasureCost = MeasureCost_Taxi_default
 
                 case "Chain":
-                        match env_map:
+                        match env_size:
                                 case '10':
                                         StateSize = 10
                                 case '20':
