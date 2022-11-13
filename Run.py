@@ -113,9 +113,10 @@ MeasureCost_Taxi_default        = 0.01 / 20
 MeasureCost_Chain_default       = 0.05
 remake_env                      = False
 
-def get_env():
+def get_env(seed = None):
         global MeasureCost
         global remake_env
+        np.random.seed(seed)
         match env_name:
                 
                 case "Lake":
@@ -166,7 +167,7 @@ def get_env():
                                 case other:
                                         print("Environment map not recognized for Lake environments!")
                                         exit()
-                        if map_name != None:
+                        if map_name == None:
                                 remake_env = True
                         match env_variant:
                                 case "det":
@@ -244,8 +245,8 @@ def get_env():
 ######################################################
 
 # Both final names and previous/working names are implemented here
-def get_agent():
-        ENV = get_env()
+def get_agent(seed=None):
+        ENV = get_env(seed)
         match algo_name:
                 case "AMRL":
                         agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
@@ -311,7 +312,7 @@ nmbr runs: {}
 nmbr episodes per run: {}.
 """.format(algo_name, envFullName, nmbr_runs, nmbr_eps))
 
-agent = get_agent()
+agent = get_agent(0)
 
 for i in range(nmbr_runs):
         t_this_start = t.perf_counter()
@@ -321,7 +322,7 @@ for i in range(nmbr_runs):
                 export_data(rewards[:i+1],steps[:i+1],measures[:i+1],t_start)
         print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i, t_this_end-t_this_start, r_avg, np.average(steps[i]),np.average(measures[i])))
         if remake_env:
-                agent = get_agent()
+                agent = get_agent(i+1)
 print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))
 
 if makePlot:
@@ -330,4 +331,4 @@ if makePlot:
         else:
                 command = 'python ./Plot_Data.py -folderData {0} -folderPlots {1} -file {2}'.format( rep_name, plotRepo, file_name)
                 print (command)
-                os.system(command)
+                os.system (command)

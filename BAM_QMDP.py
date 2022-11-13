@@ -43,7 +43,8 @@ class BAM_QMDP:
         
         self.otsteps = offline_training_steps
         self.offline_eta = 0.5
-        self.eta_measure = 0.05
+        self.eta_measure = 0.0
+        self.max_steps_without_measuring = self.StateSize 
 
         self.initPrior = 1/self.StateSize           # Initial alpha-values, as used in the prior for T
         self.optimism_type = "RMAX+"                # RMAX+ (old), UCB, RMAX
@@ -134,7 +135,7 @@ class BAM_QMDP:
             Loss = self.get_loss(b_next,next_action)
             TransSupport = self.get_support(s,action)
             
-            measure = (Loss > self.MeasureCost) or (TransSupport < self.NmbrOptimiticTries) or np.random.random() < self.eta_measure
+            measure = (Loss > self.MeasureCost) or (TransSupport < self.NmbrOptimiticTries) or self.steps_taken > self.max_steps_without_measuring
             
             #4: Take Action:
             if np.random.rand() < self.eta:
