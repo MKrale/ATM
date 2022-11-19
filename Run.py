@@ -230,9 +230,9 @@ def get_agent(seed=None):
         ENV = get_env(seed)
         match algo_name:
                 case "AMRL":
-                        agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
-                case "AMRL_greedy":
                         agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
+                case "AMRL_greedy":
+                        agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
                 case "BAM_QMDP":
                         agent = BAM_QMDP(ENV, offline_training_steps=0)
                 case "BAM_QMDP+":
@@ -260,8 +260,12 @@ def get_agent(seed=None):
 ######################################################
 
 if file_name == None:
-        file_name = 'AMData_{}_{}_eps={}_runs={}_t={}.json'.format(algo_name, envFullName, nmbr_eps, nmbr_runs, datetime.datetime.now().strftime("%d%m%Y%H%M%S"))
+        # file_name = 'AMData_{}_{}_eps={}_runs={}_t={}.json'.format(algo_name, envFullName, nmbr_eps, nmbr_runs, datetime.datetime.now().strftime("%d%m%Y%H%M%S"))
+        file_name = 'AMData_{}_{}_{}.json'.format(algo_name, envFullName, str(int(float(args.m_cost)*100)).zfill(3))
+        #file_name = 'AMData_{}_{}.json'.format(algo_name, envFullName)
 
+
+        
 if args.m_cost == -1:
         args.m_cost == MeasureCost
 def PR_to_data(pr_time):
@@ -297,7 +301,7 @@ agent = get_agent(0)
 
 for i in range(nmbr_runs):
         t_this_start = t.perf_counter()
-        (r_avg, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, True)
+        (r_avg, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, True) 
         t_this_end = t.perf_counter()
         if doSave:
                 export_data(rewards[:i+1],steps[:i+1],measures[:i+1],t_start)

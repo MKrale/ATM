@@ -13,7 +13,7 @@ class DiscreteActionMapping(ActionMapping):
 
     This is a concrete implementation of the abstract class ActionMapping for Discrete POMDPs
     """
-    def __init__(self, belief_node_owner, discrete_action_pool, bin_sequence):
+    def __init__(self, belief_node_owner, discrete_action_pool, bin_sequence, preferedOver):
         super(DiscreteActionMapping, self).__init__(belief_node_owner)
         self.pool = discrete_action_pool
         self.number_of_bins = self.pool.all_actions.__len__()
@@ -23,10 +23,11 @@ class DiscreteActionMapping(ActionMapping):
         self.total_visit_count = 0
 
         for i in range(0,self.number_of_bins):
-            entry = DiscreteActionMappingEntry()
+            entry = DiscreteActionMappingEntry() 
             entry.bin_number = i
             entry.map = self
             entry.is_legal = False
+            entry.preferred_action = (i > preferedOver)
             self.entries.__setitem__(i, entry)
 
         # Only entries in the sequence are legal
@@ -126,11 +127,8 @@ class DiscreteActionMappingEntry(ActionMappingEntry):
         self.map = None     # DiscreteActionMapping
         self.child_node = None       # ActionNode
         self.visit_count = 0
-        self.visit_count_nonmeasuring = 0
         self.total_q_value = 0
-        self.total_q_nonmeasuring = 0
         self.mean_q_value = 0
-        self.mean_q_nonmeasuring = 0
         self.max_q_value = -100_000
         self.is_legal = False
 
@@ -142,19 +140,16 @@ class DiscreteActionMappingEntry(ActionMappingEntry):
         return self.map.pool.sample_an_action(self.bin_number)
 
     # Update the action mapping entries visit count and the action maps total visit count
-    def update_visit_count(self, delta_n_visits, isMeasuring=False):
+    def update_visit_count(self, delta_n_visits):
         if delta_n_visits == 0:
             return
 
         self.visit_count += delta_n_visits
         self.map.total_visit_count += delta_n_visits
-        
-        if not isMeasuring:
-            self.visit_count_nonmeasuring += delta_n_visits
 
         return self.visit_count
 
-    def update_q_value(self, this_q, delta_n_visits=0, isMeasuring=False):
+    def update_q_value(self, this_q, delta_n_visits=0):
         
         if this_q == 0:
             return False
@@ -163,20 +158,15 @@ class DiscreteActionMappingEntry(ActionMappingEntry):
         assert np.isfinite(this_q)
 
         if delta_n_visits != 0:
-            self.update_visit_count(delta_n_visits, isMeasuring)
+            self.update_visit_count(delta_n_visits)
 
         # Ensure that preferred actions never have negative Q values to favor them
-        if self.preferred_action and delta_total_q < 0:
-            delta_total_q = -0.05
-            delta_total_q = -delta_total_q
+        if self.preferred_action and this_q < 0:
+            this_q = 0
 
         # Add up the Q value
         self.total_q_value += this_q
         self.mean_q_value = old_div(self.total_q_value, self.visit_count)
-        if not isMeasuring:
-            self.total_q_nonmeasuring += this_q
-            self.mean_q_nonmeasuring = old_div(self.total_q_value, self.visit_count_nonmeasuring)
-
 
         if self.max_q_value < this_q:
             self.max_q_value = this_q

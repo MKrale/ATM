@@ -36,8 +36,8 @@ class ModelLearner():
         
         # Variables for learning:
         self.Q = 1/self.counter[:,:self.CActionSize]
-        self.lr = 1
-        self.df = 0.8
+        self.lr = 0.3
+        self.df = 0.95
     
     def get_model(self):
         """Returns T, R, R_biased"""
@@ -49,7 +49,7 @@ class ModelLearner():
     
     def filter_T(self):
         """Filters all transitions with p<1/|S| from T"""
-        p = 1/self.StateSize
+        p = min(1/self.StateSize, 0.05)
         # mask = self.T_counter<p*self.counter[:,:,np.newaxis]
         mask = self.T < p
         self.T[mask] = 0
@@ -81,6 +81,7 @@ class ModelLearner():
         if modify:
             self.filter_T()
             self.add_costs()
+        print(self.T, self.R)
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):
@@ -100,7 +101,6 @@ class ModelLearner():
             else:
                 (s, cost) = self.env.measure()
             
-            print(a,s)
             # Update logging variables
             self.sampling_rewards[episode] += reward - self.cost
             self.sampling_steps[episode] += 1

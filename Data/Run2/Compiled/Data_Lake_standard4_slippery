@@ -6,14 +6,14 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = -1.0
 
-avererage reward            = -0.014027999999999999            (with std = 0.086265948415351)
-average nmbr steps          = 6.684023999999998            (with std = 0.8567012824923279)
-average nmbr measurements   = 0.9397599999999998            (with std = 1.6189842936283798)
+avererage reward            = -0.014070000000000003            (with std = 0.11911143983681835)
+average nmbr steps          = 6.6842            (with std = 2.6404223828774063)
+average nmbr measurements   = 0.9414            (with std = 1.8609583660039255)
 
 In last 1/10th of episodes:
-avererage reward            = 0.026539999999999998            (with std = 0.012986325352225167)
-average nmbr steps          = 6.898559999999998            (with std = 0.6099362843899225)
-average nmbr measurements   = 0.08119999999999998            (with std = 0.04718161310706338)
+avererage reward            = 0.020199999999999996            (with std = 0.061951271173398846)
+average nmbr steps          = 6.911999999999999            (with std = 2.620888398997561)
+average nmbr measurements   = 0.07600000000000001            (with std = 0.16918628786045278)
 
 
 BAM_QMDP+:
@@ -21,42 +21,42 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = -1.0
 
-avererage reward            = -0.0021480000000000067            (with std = 0.09051418410034102)
-average nmbr steps          = 5.64994            (with std = 0.7534869923774737)
-average nmbr measurements   = 0.8830933333333333            (with std = 1.678937566125378)
+avererage reward            = -0.002183333333333337            (with std = 0.15188979831882501)
+average nmbr steps          = 5.647666666666666            (with std = 2.3177995071954682)
+average nmbr measurements   = 0.8836666666666666            (with std = 2.0298658685845337)
 
 In last 1/10th of episodes:
-avererage reward            = 0.04208333333333332            (with std = 0.01301768438846198)
-average nmbr steps          = 6.0169333333333315            (with std = 0.4717168830747723)
-average nmbr measurements   = 0.08899999999999998            (with std = 0.02740968074039897)
-
-
-ACNO_OTP:
-nmbr_eps                    = 1000
-nmbr_runs                   = 2
-measure_cost                = -1.0
-
-avererage reward            = -0.21921499999999994            (with std = 0.05867560597504265)
-average nmbr steps          = 5.134129999999999            (with std = 0.671506223712495)
-average nmbr measurements   = 4.875699999999999            (with std = 0.9056055785197846)
-
-In last 1/10th of episodes:
-avererage reward            = -0.09825999999999999            (with std = 0.05124897087146838)
-average nmbr steps          = 5.506500000000001            (with std = 0.6131153267095465)
-average nmbr measurements   = 2.9991999999999996            (with std = 0.47839408280364254)
+avererage reward            = 0.03533333333333333            (with std = 0.10496771990579877)
+average nmbr steps          = 6.159999999999999            (with std = 2.3581913973778015)
+average nmbr measurements   = 0.09333333333333332            (with std = 0.31297852251481345)
 
 
 AMRL:
 nmbr_eps                    = 1000
 nmbr_runs                   = 5
-measure_cost                = -1.0
+measure_cost                = 0.05
 
-avererage reward            = -0.010785            (with std = 0.03149653311202556)
-average nmbr steps          = 9.095855999999998            (with std = 0.831804756049806)
-average nmbr measurements   = 0.6251399999999999            (with std = 0.5453332379380519)
+avererage reward            = 0.009380000000000001            (with std = 0.07168971753326972)
+average nmbr steps          = 8.158            (with std = 6.705633154296468)
+average nmbr measurements   = 0.2284            (with std = 0.7056865026341371)
 
 In last 1/10th of episodes:
-avererage reward            = 0.0034059999999999976            (with std = 0.014550530870569107)
-average nmbr steps          = 9.151119999999999            (with std = 1.3040987460488391)
-average nmbr measurements   = 0.4998799999999999            (with std = 0.08957948460188002)
+avererage reward            = 0.032            (with std = 0.07332121111929345)
+average nmbr steps          = 9.339999999999998            (with std = 12.268088685691833)
+average nmbr measurements   = 0.0            (with std = 0.0)
+
+
+ACNO_OTP:
+nmbr_eps                    = 1000
+nmbr_runs                   = 5
+measure_cost                = 0.05
+
+avererage reward            = -0.2446            (with std = 0.1410136163638108)
+average nmbr steps          = 5.5724            (with std = 2.445575237035246)
+average nmbr measurements   = 5.296            (with std = 2.70488151311661)
+
+In last 1/10th of episodes:
+avererage reward            = 0.04000000000000001            (with std = 0.08944271909999159)
+average nmbr steps          = 5.528            (with std = 1.6765488361512169)
+average nmbr measurements   = 0.0            (with std = 0.0)
 

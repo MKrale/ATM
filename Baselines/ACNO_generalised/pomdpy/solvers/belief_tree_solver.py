@@ -171,6 +171,8 @@ class BeliefTreeSolver(Solver):
         self.model.update(step_result)
 
         child_belief_node = self.belief_tree_index.get_child(step_result.action, step_result.observation)
+        
+
 
         # If the child_belief_node is None because the step result randomly produced a different observation,
         # grab any of the beliefs extending from the belief node's action node

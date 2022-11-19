@@ -3,45 +3,45 @@ Data collected from running in 20x20 Frozen Lake Environment (semi-slippery) , u
 
 BAM_QMDP:
 nmbr_eps                    = 7500
-nmbr_runs                   = 10
+nmbr_runs                   = 5
 measure_cost                = 0.05
 
-avererage reward            = -0.41316890666666667            (with std = 0.22760929480699588)
-average nmbr steps          = 46.91130079999999            (with std = 21.283805221293253)
-average nmbr measurements   = 9.556551466666665            (with std = 3.8801115353790987)
+avererage reward            = -0.3170946666666667            (with std = 0.2900373292725534)
+average nmbr steps          = 32.951119999999996            (with std = 19.96791600073144)
+average nmbr measurements   = 6.39256            (with std = 5.807042446868572)
 
 In last 1/10th of episodes:
-avererage reward            = -0.1521212            (with std = 0.042164868622404414)
-average nmbr steps          = 77.30312799999999            (with std = 16.541890735042276)
-average nmbr measurements   = 4.969037333333333            (with std = 0.9075465275865625)
+avererage reward            = -0.06520000000000004            (with std = 0.11627966288220828)
+average nmbr steps          = 48.023999999999994            (with std = 31.56691027009137)
+average nmbr measurements   = 1.544            (with std = 2.6752315787609864)
 
 
 BAM_QMDP+:
 nmbr_eps                    = 7500
-nmbr_runs                   = 3
-measure_cost                = 0.05
-
-avererage reward            = -0.15624666666666664            (with std = 0.4275928861862577)
-average nmbr steps          = 30.733845333333328            (with std = 7.313499780267697)
-average nmbr measurements   = 11.897199999999998            (with std = 2.9077720943740606)
-
-In last 1/10th of episodes:
-avererage reward            = 0.24201533333333325            (with std = 0.04761508792622588)
-average nmbr steps          = 28.853746666666662            (with std = 1.327728037655328)
-average nmbr measurements   = 11.230626666666664            (with std = 0.6213151825014718)
-
-
-AMRL:
-nmbr_eps                    = 7500
 nmbr_runs                   = 5
 measure_cost                = 0.05
 
-avererage reward            = -0.06269759999999999            (with std = 0.026357320419115017)
-average nmbr steps          = 19.320515733333327            (with std = 3.4014815785566372)
-average nmbr measurements   = 1.2539519999999997            (with std = 0.5271464083823002)
+avererage reward            = -0.21727333333333335            (with std = 0.5069425989421507)
+average nmbr steps          = 30.7326            (with std = 27.83658020016108)
+average nmbr measurements   = 7.780133333333334            (with std = 8.539140783214407)
 
 In last 1/10th of episodes:
-avererage reward            = -0.06097199999999999            (with std = 0.01042771797441061)
-average nmbr steps          = 21.736549333333333            (with std = 4.293993366167957)
-average nmbr measurements   = 1.2194399999999999            (with std = 0.2085543594882122)
+avererage reward            = 0.02            (with std = 0.18452642087245935)
+average nmbr steps          = 43.43            (with std = 39.22996431300951)
+average nmbr measurements   = 2.2            (with std = 2.477902338672773)
+
+
+AMRL:
+nmbr_eps                    = 1000
+nmbr_runs                   = 5
+measure_cost                = 0.05
+
+avererage reward            = -0.10294000000000002            (with std = 0.0955141685824674)
+average nmbr steps          = 17.9128            (with std = 7.965671105437382)
+average nmbr measurements   = 2.0588            (with std = 1.9102833716493477)
+
+In last 1/10th of episodes:
+avererage reward            = -0.052600000000000015            (with std = 0.08963950022172147)
+average nmbr steps          = 17.26            (with std = 10.111636860568126)
+average nmbr measurements   = 1.052            (with std = 1.7927900044344292)
 

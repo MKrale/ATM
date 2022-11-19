@@ -20,7 +20,7 @@ class ACNO_ENV():
         # Set up variables
         self.StateSize, self.ActionSize, self.cost, self.s_init, self.doneState = self.env.get_vars()
         self.CActionSize = self.ActionSize // 2  #both measuring & non-measuring actions
-        self.EmptyObservation = -1
+        self.EmptyObservation = None
         self.donePenalty = 0.1
         self.selfLoopPenalty = 0.1
         
@@ -32,17 +32,16 @@ class ACNO_ENV():
         # Other POMCP-variables
         self.solver = 'POMCP'
         self.n_start_states = 200
-        self.ucb_coefficient = 25 
-        self.seed = np.random.seed() 
-        self.min_particle_count = 180
-        self.max_particle_count = 200
-        self.max_depth = 25
+        self.ucb_coefficient = 10 
+        self.min_particle_count = 1800
+        self.max_particle_count = 2000
+        self.max_depth = 10
         self.action_selection_timeout = 600_000
         self.particle_selection_timeout = 2
         self.n_sims = 25_000
         self.preferred_actions = False
         self.timeout = 7_200_000_000_000 # Just in case...
-        self.discount = 0.95
+        self.discount = 0.99
         
         # Observe_while_planning vars
         self.epsilon_start = 1

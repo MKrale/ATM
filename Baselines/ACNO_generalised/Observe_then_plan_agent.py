@@ -31,7 +31,7 @@ class ACNO_Agent_OTP:
         # The POMCP-solver
         self.solver = POMCP(self)
         self.solver_factory = POMCP
-        
+         
         
     
     def run(self, nmbr_episodes, get_full_results=True):
@@ -69,7 +69,7 @@ class ACNO_Agent_OTP:
             
             # Perform action
             (reward, obs, done) = self.model.take_real_step(action, False)
-            #print(action, obs, reward)
+            print(action, obs, reward)
             
             # Update solver & history
             stepResult = self.model.to_StepResult(action, obs, obs, reward, done)

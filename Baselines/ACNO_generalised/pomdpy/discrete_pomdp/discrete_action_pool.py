@@ -14,9 +14,10 @@ class DiscreteActionPool(ActionPool):
         :param model:
         """
         self.all_actions = model.get_all_actions()
+        self.preferedOver = model.CActionSize
 
     def create_action_mapping(self, belief_node):
-        return DiscreteActionMapping(belief_node, self, self.create_bin_sequence(belief_node))
+        return DiscreteActionMapping(belief_node, self, self.create_bin_sequence(belief_node), preferedOver=self.preferedOver)
 
     def sample_an_action(self, bin_number):
         return self.all_actions[bin_number]
