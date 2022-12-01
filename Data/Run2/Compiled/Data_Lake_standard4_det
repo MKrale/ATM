@@ -6,9 +6,9 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = -1.0
 
-avererage reward            = 0.9186700000000001            (with std = 0.29651531343254434)
+avererage reward            = 0.9186700000000001            (with std = 0.002715437349673129)
 average nmbr steps          = 6.106            (with std = 0.6493412046066381)
-average nmbr measurements   = 0.5266000000000001            (with std = 1.8819809882142806)
+average nmbr measurements   = 0.5266            (with std = 1.8819809882142806)
 
 In last 1/10th of episodes:
 avererage reward            = 1.0            (with std = 0.0)
@@ -21,7 +21,7 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = -1.0
 
-avererage reward            = 0.9432999999999999            (with std = 0.2431347568736317)
+avererage reward            = 0.9433            (with std = 0.013124709520595093)
 average nmbr steps          = 6.0326            (with std = 0.6905195435322595)
 average nmbr measurements   = 0.354            (with std = 1.5697273648630836)
 
@@ -36,9 +36,9 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = 0.05
 
-avererage reward            = 0.9618199999999999            (with std = 0.14459490862405908)
+avererage reward            = 0.9618199999999999            (with std = 0.04855999999999999)
 average nmbr steps          = 6.0956            (with std = 0.7489597051911404)
-average nmbr measurements   = 0.15560000000000002            (with std = 1.0113103579020635)
+average nmbr measurements   = 0.1556            (with std = 1.0113103579020635)
 
 In last 1/10th of episodes:
 avererage reward            = 1.0            (with std = 0.0)
@@ -51,7 +51,7 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = 0.05
 
-avererage reward            = -0.10055000000000014            (with std = 0.7219987517302259)
+avererage reward            = -0.10055000000000013            (with std = 0.0)
 average nmbr steps          = 3.532            (with std = 13.452667244825466)
 average nmbr measurements   = 3.231            (with std = 13.460967238649678)
 

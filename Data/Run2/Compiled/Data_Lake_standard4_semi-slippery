@@ -6,12 +6,12 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = -1.0
 
-avererage reward            = 0.7223499999999999            (with std = 0.21457767241723916)
+avererage reward            = 0.72235            (with std = 0.10354949058300575)
 average nmbr steps          = 5.1126            (with std = 0.9904348741840627)
 average nmbr measurements   = 2.885            (with std = 0.9873272000709795)
 
 In last 1/10th of episodes:
-avererage reward            = 0.7475999999999998            (with std = 0.11944136636860782)
+avererage reward            = 0.7476            (with std = 0.13203726746642402)
 average nmbr steps          = 5.024            (with std = 1.0678127176616692)
 average nmbr measurements   = 2.648            (with std = 0.5521738856555967)
 
@@ -21,12 +21,12 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = -1.0
 
-avererage reward            = 0.60254            (with std = 0.2028125942834912)
-average nmbr steps          = 5.7345999999999995            (with std = 1.377941522706969)
+avererage reward            = 0.60254            (with std = 0.200702345277777)
+average nmbr steps          = 5.7346            (with std = 1.377941522706969)
 average nmbr measurements   = 3.1732            (with std = 0.9843585525610066)
 
 In last 1/10th of episodes:
-avererage reward            = 0.6556000000000001            (with std = 0.15125025619813012)
+avererage reward            = 0.6556000000000001            (with std = 0.17525592714655905)
 average nmbr steps          = 5.64            (with std = 1.3493702234746399)
 average nmbr measurements   = 2.968            (with std = 0.6278343730634697)
 
@@ -36,12 +36,12 @@ nmbr_eps                    = 1000
 nmbr_runs                   = 5
 measure_cost                = 0.05
 
-avererage reward            = 0.39188999999999996            (with std = 0.22896053786624454)
+avererage reward            = 0.39189            (with std = 0.06872251014041905)
 average nmbr steps          = 6.31            (with std = 7.336995297804135)
 average nmbr measurements   = 0.2102            (with std = 0.7772361031243981)
 
 In last 1/10th of episodes:
-avererage reward            = 0.412            (with std = 0.2094182418033348)
-average nmbr steps          = 6.264000000000001            (with std = 9.273656452554194)
+avererage reward            = 0.412            (with std = 0.051536394906900505)
+average nmbr steps          = 6.264            (with std = 9.273656452554194)
 average nmbr measurements   = 0.0            (with std = 0.0)
 
