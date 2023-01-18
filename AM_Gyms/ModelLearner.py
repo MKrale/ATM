@@ -6,7 +6,7 @@ from AM_Gyms.AM_Env_wrapper import AM_ENV
 class ModelLearner():
     """Class for learning ACNO-MDP """
 
-    def __init__(self, env:AM_ENV):
+    def __init__(self, env:AM_ENV, df = 0.95):
         # Set up AM-environment
         self.env = env
         
@@ -18,6 +18,7 @@ class ModelLearner():
         self.doneState = self.StateSize -1
         self.loopPenalty = 0 #self.cost
         self.donePenalty = 0 #self.cost
+        self.df_real = df    # discount factor, only impacts Q_real
         
         self.init_model()
 
@@ -34,14 +35,21 @@ class ModelLearner():
         self.R = self.R_counter / np.maximum(self.counter-1,1)
         self.R_biased = self.R_counter / np.maximum(self.counter-1,1) #Not yet biased...
         
+        self.Q_real = np.zeros( (self.StateSize, self.ActionSize )) # The Q-value of the MDP
+        self.Q_real_max = np.zeros( ( self.StateSize) )
+        
         # Variables for learning:
-        self.Q = 1/self.counter[:,:self.CActionSize]
+        self.Q = 1/self.counter[:,:self.CActionSize] # The 'value' of checking a transition, i.e. the Q-value of this algorihtm
         self.lr = 0.3
         self.df = 0.95
     
     def get_model(self):
         """Returns T, R, R_biased"""
         return self.T, self.R, self.R_biased
+    
+    def get_Q(self):
+        """Returns the Q-value function (NOTE: measuring cost currently unused!)"""
+        return self.Q_real
     
     def get_vars(self):
         """returns StateSize, ActionSize, cost, s_init, doneState"""
@@ -60,9 +68,7 @@ class ModelLearner():
         costs = np.zeros((self.StateSize, self.ActionSize))
         costs[:, :self.CActionSize] -= self.cost    # Measuring cost
         for a in range(self.ActionSize):
-            #print(self.T[:,a,:])
             selfprob = np.diagonal(self.T[:,a,:])
-            #print(selfprob)
             doneprob = self.T[:,a,self.doneState]
             costs[:,a] -= selfprob*self.loopPenalty + doneprob*self.donePenalty
         self.R_biased += costs
@@ -76,12 +82,11 @@ class ModelLearner():
         
         for eps in range(N):
             self.sample_episode(eps, max_steps)
-            if (eps+1) % 100 == 0 and logging:
-                print("{} exploration episodes completed!".format(eps))
+            if (eps+1) % (N/10) == 0 and logging:
+                print("{} exploration episodes completed!".format(eps+1))
         if modify:
             self.filter_T()
             self.add_costs()
-        print(self.T, self.R)
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):
@@ -123,6 +128,7 @@ class ModelLearner():
         self.counter[s_prev,ac] += 1
         self.T_counter[s_prev,ac,s_next] += 1
         self.R_counter[s_prev,ac] += reward
+        
         # update non-measuring actions counters
         anm = ac + self.CActionSize
         self.counter[s_prev,anm] += 1
@@ -132,6 +138,11 @@ class ModelLearner():
         # update model
         self.T = self.T_counter / self.counter[:,:,np.newaxis]
         self.R = self.R_counter / np.maximum(self.counter-1,1)
+        
+        # update Q-values
+        self.Q_real[s_prev, ac] = self.df_real * np.sum(self.T[s_prev,ac]*self.Q_real_max) + self.R[s_prev,ac] 
+        self.Q_real[s_prev, anm] = self.df_real * np.sum(self.T[s_prev,anm]*self.Q_real_max) + self.R[s_prev,anm]
+        self.Q_real_max[s_prev] = np.max(self.Q_real[s_prev])
         
     def reset_env(self):
         self.env.reset()
