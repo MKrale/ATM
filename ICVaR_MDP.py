@@ -159,6 +159,9 @@ class ICVaR():
             if (i%(updates/10) == 0 and logging):
                 print("Episode {} completed!".format(i+1))
 
+    def get_model(self):
+        """Return all model tables (P, R, Q, ICVaR)"""
+        return (self.P, self.R, self.Q, self.ICVaR)
 
 # Code for testing:
 
