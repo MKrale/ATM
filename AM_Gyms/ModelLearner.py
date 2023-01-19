@@ -35,8 +35,8 @@ class ModelLearner():
         self.R = self.R_counter / np.maximum(self.counter-1,1)
         self.R_biased = self.R_counter / np.maximum(self.counter-1,1) #Not yet biased...
         
-        self.Q_real = np.zeros( (self.StateSize, self.ActionSize )) # The Q-value of the MDP
-        self.Q_real_max = np.zeros( ( self.StateSize) )
+        self.Q_real = np.ones( (self.StateSize, self.ActionSize )) # The Q-value of the MDP
+        self.Q_real_max = np.ones( ( self.StateSize) )
         
         # Variables for learning:
         self.Q = 1/self.counter[:,:self.CActionSize] # The 'value' of checking a transition, i.e. the Q-value of this algorihtm
@@ -44,11 +44,11 @@ class ModelLearner():
         self.df = 0.95
     
     def get_model(self):
-        """Returns T, R, R_biased"""
+        """Returns T, R, R_biased (Note: actionspace is \tilde{A} = AxM!) """
         return self.T, self.R, self.R_biased
     
     def get_Q(self):
-        """Returns the Q-value function (NOTE: measuring cost currently unused!)"""
+        """Returns the Q-value function (NOTE: measuring cost currently unused, and action space \tilde{A}!)"""
         return self.Q_real
     
     def get_vars(self):
@@ -73,7 +73,7 @@ class ModelLearner():
             costs[:,a] -= selfprob*self.loopPenalty + doneprob*self.donePenalty
         self.R_biased += costs
     
-    def sample(self, N, max_steps = 500, logging = True, includeCosts = True, modify = True):
+    def sample(self, N, max_steps = 100, logging = True, includeCosts = True, modify = True):
         """Learns the model using N episodes, returns episodic costs and steps"""
         # Intialisation
         self.init_model()
@@ -84,6 +84,7 @@ class ModelLearner():
             self.sample_episode(eps, max_steps)
             if (eps+1) % (N/10) == 0 and logging:
                 print("{} exploration episodes completed!".format(eps+1))
+        self.update_Q_only()
         if modify:
             self.filter_T()
             self.add_costs()
@@ -136,14 +137,23 @@ class ModelLearner():
         self.R_counter[s_prev,anm] += reward
         
         # update model
-        self.T = self.T_counter / self.counter[:,:,np.newaxis]
-        self.R = self.R_counter / np.maximum(self.counter-1,1)
+        self.T[s_prev] = self.T_counter[s_prev] / self.counter[s_prev,:,np.newaxis]
+        self.R[s_prev] = self.R_counter[s_prev] / np.maximum(self.counter[s_prev]-1,1)
         
         # update Q-values
         self.Q_real[s_prev, ac] = self.df_real * np.sum(self.T[s_prev,ac]*self.Q_real_max) + self.R[s_prev,ac] 
         self.Q_real[s_prev, anm] = self.df_real * np.sum(self.T[s_prev,anm]*self.Q_real_max) + self.R[s_prev,anm]
         self.Q_real_max[s_prev] = np.max(self.Q_real[s_prev])
-        
+    
+    def update_Q_only(self, updates = 100):
+        for i in range(updates):
+            saPairs = np.array(np.meshgrid(np.arange(self.StateSize), np.arange(self.ActionSize))).T.reshape(-1,2)
+            np.random.shuffle(saPairs)
+            for sa in saPairs:
+                s,a = sa[0], sa[1]
+                self.Q_real[s,a] = self.df_real * np.sum(self.T[s,a]*self.Q_real_max) + self.R[s,a]
+            self.Q_real_max = np.max(self.Q_real, axis=1)
+    
     def reset_env(self):
         self.env.reset()
         

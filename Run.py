@@ -29,6 +29,8 @@ import os
 # Agents
 import Baselines.AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
+from ACNO_Planning import ACNO_Planner
+from ACNO_Planning_Robust import ACNO_Planner_Robust
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
 from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
 from Baselines.DRQN import DRQN_Agent
@@ -70,9 +72,11 @@ parser.add_argument('-nmbr_eps'         , default = 500,                help='nm
 parser.add_argument('-nmbr_runs'        , default = 1,                  help='nmbr of runs to perform')
 parser.add_argument('-f'                , default = None,               help='File name (default: generated automatically)')
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
-parser.add_argument('-plot'             , default = "False",              help='Automatically plot data using Plot_Data.py (default: False)')
+parser.add_argument('-plot'             , default = "False",            help='Automatically plot data using Plot_Data.py (default: False)')
 parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
+parser.add_argument('-alpha'            , detault = 1,                  help='Risk-sensitivity factor, only used by robust alg.')
+
 
 args            = parser.parse_args()
 algo_name       = args.algo
@@ -237,6 +241,10 @@ def get_agent(seed=None):
                         agent = BAM_QMDP(ENV, offline_training_steps=0)
                 case "BAM_QMDP+":
                         agent = BAM_QMDP(ENV, offline_training_steps=25)
+                case "ACNO_Planner":
+                        agent = ACNO_Planner(ENV)
+                case "ACNO_Planner_Robust":
+                        agent = ACNO_Planner_Robust(ENV)
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OWP(ENV_ACNO)
@@ -301,11 +309,11 @@ agent = get_agent(0)
 
 for i in range(nmbr_runs):
         t_this_start = t.perf_counter()
-        (r_avg, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, True) 
+        (r_tot, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, True) 
         t_this_end = t.perf_counter()
         if doSave:
                 export_data(rewards[:i+1],steps[:i+1],measures[:i+1],t_start)
-        print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i, t_this_end-t_this_start, r_avg, np.average(steps[i]),np.average(measures[i])))
+        print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i, t_this_end-t_this_start, r_tot/nmbr_eps, np.average(steps[i]),np.average(measures[i])))
         if remake_env:
                 agent = get_agent(i+1)
 print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))

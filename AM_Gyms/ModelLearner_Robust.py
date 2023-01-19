@@ -6,7 +6,7 @@ from AM_Gyms.AM_Env_wrapper import AM_ENV
 
 
 
-class ICVaR():
+class ModelLearner_Robust():
     """Class to determine the ICVaR of a MDP, as represented by an AM-env."""
     
     def __init__(self, Env:AM_ENV, alpha:float, df = 0.95):
@@ -62,7 +62,7 @@ class ICVaR():
         icvar_max, r = self.ICVaR_max[filter], self.R[s,a]
         
         # 2) Get ICVaR values according to custom procedure
-        delta_p_new = ICVaR.custom_delta_minimize(probs, icvar_max, self.alpha)
+        delta_p_new = ModelLearner_Robust.custom_delta_minimize(probs, icvar_max, self.alpha)
         
         # 3) Update deltaP's and ICVaR
         for (i,snext) in enumerate(states):
@@ -160,8 +160,8 @@ class ICVaR():
                 print("Episode {} completed!".format(i+1))
 
     def get_model(self):
-        """Return all model tables (P, R, Q, ICVaR)"""
-        return (self.P, self.R, self.Q, self.ICVaR)
+        """Return all model tables (P, R, Q, DeltaP, ICVaR)"""
+        return (self.P, self.R, self.Q, self.DeltaP, self.ICVaR)
 
 # Code for testing:
 
