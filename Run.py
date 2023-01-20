@@ -42,6 +42,7 @@ from AM_Gyms.Loss_Env import Measure_Loss_Env
 from AM_Gyms.frozen_lake_v2 import FrozenLakeEnv_v2
 from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
 from AM_Gyms.Blackjack import BlackjackEnv
+from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 
 # Environment wrappers
@@ -75,7 +76,7 @@ parser.add_argument('-rep'              , default = './Data/',          help='Re
 parser.add_argument('-plot'             , default = "False",            help='Automatically plot data using Plot_Data.py (default: False)')
 parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
-parser.add_argument('-alpha'            , detault = 1,                  help='Risk-sensitivity factor, only used by robust alg.')
+parser.add_argument('-alpha'            , default = 1,                  help='Risk-sensitivity factor, only used by robust alg.')
 
 
 args            = parser.parse_args()
@@ -210,6 +211,14 @@ def get_env(seed = None):
                         StateSize, ActionSize, s_init = 704, 2, -1
                         if MeasureCost ==-1:
                                 MeasureCost = 0.05
+
+                case "Maintenance":
+                        if env_size == 0:
+                                env_size = 8
+                        env = Machine_Maintenance_Env(N=env_size)
+                        StateSize, ActionSize, s_init = env_size+3, 2, 0
+                        if MeasureCost == -1:
+                                MeasureCost = 0.01
                 
                 case other:
                         print("Environment not recognised, please try again!")

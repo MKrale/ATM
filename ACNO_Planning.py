@@ -30,7 +30,7 @@ class ACNO_Planner():
         
         # TODO: Add ICVaR, ICVaR_max, alpha!
         
-    def learn_model(self, eps = 10_000, logging = False):
+    def learn_model(self, eps = 5_000, logging = False):
         model = ModelLearner(self.env, self.df)
         model.sample(eps, logging=logging)
         self.P, R, _ = model.get_model()
@@ -103,11 +103,12 @@ class ACNO_Planner():
             self.Q_max[s] = np.max(self.Q[s])
     
     def update_step_vars(self):
-        self.b_dict , self.b = self.check_validity_belief(self.b_next_dict, self.b_next)
-        self.episode_reward += self.r - self.c
-        self.steps_taken += 1
-        if self.m:
-            self.measurements_taken += 1
+        if not self.done:
+            self.b_dict , self.b = self.check_validity_belief(self.b_next_dict, self.b_next)
+            self.episode_reward += self.r - self.c
+            self.steps_taken += 1
+            if self.m:
+                self.measurements_taken += 1
             
     def check_validity_belief(self, b_dict:dict, b_array = None):
         
@@ -115,8 +116,11 @@ class ACNO_Planner():
         scaling_factor = 1
         if self.doneState in b_dict:
             p_done = b_dict[self.doneState]
-            b_dict.pop(self.doneState)
-            scaling_factor = 1 / (1-p_done) 
+            if p_done == 1:
+                print("Warning: belief state contains only impossible states!")
+            else:
+                b_dict.pop(self.doneState)
+                scaling_factor = 1 / (1-p_done) 
         for s in b_dict:
             b_dict[s] = b_dict[s] * scaling_factor
         if b_array is not None:
