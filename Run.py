@@ -30,7 +30,7 @@ import os
 import Baselines.AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
 from ACNO_Planning import ACNO_Planner
-from ACNO_Planning_Robust import ACNO_Planner_Robust
+from ACNO_Planning_Robust import ACNO_Planner_Robust, ACNO_Planner_Semi_Robust
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
 from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
 from Baselines.DRQN import DRQN_Agent
@@ -76,7 +76,7 @@ parser.add_argument('-rep'              , default = './Data/',          help='Re
 parser.add_argument('-plot'             , default = "False",            help='Automatically plot data using Plot_Data.py (default: False)')
 parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
-parser.add_argument('-alpha'            , default = 1,                  help='Risk-sensitivity factor, only used by robust alg.')
+parser.add_argument('-alpha'            , default = 0.8,                help='Risk-sensitivity factor, only used by robust alg.')
 
 
 args            = parser.parse_args()
@@ -91,6 +91,7 @@ nmbr_runs       = int(args.nmbr_runs)
 plotRepo        = args.plot_rep
 file_name       = args.f
 rep_name        = args.rep
+alpha           = float(args.alpha)
 
 if args.save == "False" or args.save == "false":
         doSave = False
@@ -250,10 +251,12 @@ def get_agent(seed=None):
                         agent = BAM_QMDP(ENV, offline_training_steps=0)
                 case "BAM_QMDP+":
                         agent = BAM_QMDP(ENV, offline_training_steps=25)
-                case "ACNO_Planner":
+                case "ATM":
                         agent = ACNO_Planner(ENV)
-                case "ACNO_Planner_Robust":
-                        agent = ACNO_Planner_Robust(ENV)
+                case "ATM_Robust":
+                        agent = ACNO_Planner_Robust(ENV, alpha=alpha)
+                case "ATM_Semi_Robust":
+                        agent = ACNO_Planner_Semi_Robust(ENV, alpha=alpha)
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OWP(ENV_ACNO)

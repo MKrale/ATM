@@ -56,7 +56,7 @@ class ACNO_Planner():
         
         for i in range(eps):
             self.run_episode()
-            rewards[i], steps[i], measurements[i] = self.r, self.steps_taken, self.measurements_taken
+            rewards[i], steps[i], measurements[i] = self.episode_reward, self.steps_taken, self.measurements_taken
             if (i > 0 and i%log_nmbr == 0 and logging):
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, eps, np.average(rewards[(i-log_nmbr):i]), np.average(steps[(i-log_nmbr):i]), np.average(measurements[(i-log_nmbr):i]) ) )
@@ -89,7 +89,6 @@ class ACNO_Planner():
         self.b_dict = {}
         self.b_dict[self.s_init] = 1
         self.done=False
-        self.c = 0
         
         # Logging variables
         self.measurements_taken = 0
@@ -103,12 +102,12 @@ class ACNO_Planner():
             self.Q_max[s] = np.max(self.Q[s])
     
     def update_step_vars(self):
-        if not self.done:
-            self.b_dict , self.b = self.check_validity_belief(self.b_next_dict, self.b_next)
-            self.episode_reward += self.r - self.c
-            self.steps_taken += 1
-            if self.m:
-                self.measurements_taken += 1
+        self.b_dict , self.b = self.check_validity_belief(self.b_next_dict, self.b_next)
+        self.episode_reward += self.r
+        self.steps_taken += 1
+        if self.m:
+            self.measurements_taken += 1
+            self.episode_reward -= self.cost
             
     def check_validity_belief(self, b_dict:dict, b_array = None):
         
@@ -117,7 +116,8 @@ class ACNO_Planner():
         if self.doneState in b_dict:
             p_done = b_dict[self.doneState]
             if p_done == 1:
-                print("Warning: belief state contains only impossible states!")
+                #print("Warning: belief state contains only impossible states!")
+                pass
             else:
                 b_dict.pop(self.doneState)
                 scaling_factor = 1 / (1-p_done) 
