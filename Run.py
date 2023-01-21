@@ -10,8 +10,9 @@ For a brief description of how to use it, see the Readme-file in this repo.
 
 # File structure stuff
 import sys
-sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-QMDP/Baselines")
-sys.path.append("C:/Users/merli/OneDrive/Documents/6_Thesis_and_Internship/BAM-QMDP/Baselines/ACNO_generalised")
+import os
+sys.path.append(os.path.join(sys.path[0],"Baselines"))
+sys.path.append(os.path.join(sys.path[0],"Baselines", "ACNO_generalised"))
 
 # External modules
 import numpy as np
