@@ -77,8 +77,7 @@ parser.add_argument('-rep'              , default = './Data/',          help='Re
 parser.add_argument('-plot'             , default = "False",            help='Automatically plot data using Plot_Data.py (default: False)')
 parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
-parser.add_argument('-alpha'            , default = 0.8,                help='Risk-sensitivity factor, only used by robust alg.')
-
+parser.add_argument('-alpha'            , default = 0.3,                help='Risk-sensitivity factor, only used by robust alg.')
 
 args            = parser.parse_args()
 algo_name       = args.algo

@@ -1,14 +1,17 @@
 import numpy as np
+import math as m
 
 
 from AM_Gyms.ModelLearner import ModelLearner
+from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
 from AM_Gyms.AM_Env_wrapper import AM_ENV
+from AM_Gyms.generic_gym import GenericGym
 
 class ACNO_Planner():
     """Class for planning in ACNO-MDP environements. In contrast to Dyna-ATM, in this method
     we assume the model dynamics are known (i.e. we do not do RL)."""
     
-    def __init__(self, Env:AM_ENV ):
+    def __init__(self, Env:AM_ENV, use_robust_MDP = True, alpha = 0.3 ):
         
         # Unpacking variables from environment:
         self.env        = Env
@@ -24,19 +27,36 @@ class ACNO_Planner():
         
         
         # Other variables:
-        self.df = 0.80
-        self.epsilon = 0
-        self.particles = 100
+        self.df         = 0.95
+        self.epsilon    = 0
+        self.particles  = 100
+        self.use_robust_MDP = use_robust_MDP
+        self.alpha = alpha
         
         # TODO: Add ICVaR, ICVaR_max, alpha!
         
     def learn_model(self, eps = 5_000, logging = False):
-        model = ModelLearner(self.env, self.df)
-        model.sample(eps, logging=logging)
-        self.P, R, _ = model.get_model()
-        self.R = R[:,self.ActionSize:]
-        self.Q = model.get_Q()[:,self.ActionSize:]
-        self.Q_max = np.max(self.Q, axis = 1)
+        if not self.use_robust_MDP:
+            # Get model
+            model = ModelLearner(self.env, self.df)
+            model.sample(eps, logging=logging)
+            P, R, _ = model.get_model()
+            self.P, self.R =P[:,self.ActionSize:,:], R[:,self.ActionSize:]
+            self.Q = model.get_Q()[:,self.ActionSize:]
+            self.Q_max = np.max(self.Q, axis = 1)
+        
+        elif self.use_robust_MDP:
+            # Get Model
+            robust_model = ModelLearner_Robust(self.env, self.alpha, self.df)
+            robust_model.run(m.ceil(eps/5), eps, logging=logging)
+            (self.P, self.R, self.Q, self.DeltaP, self.ICVaR ) = robust_model.get_model()
+            self.Q_max, self.ICVaR_max = np.max(self.Q, axis=1), np.max(self.ICVaR, axis = 1)
+            
+            # Transform environment
+            done_states = np.zeros(self.StateSize)
+            done_states[self.doneState] = 1
+            robustEnv = GenericGym(self.DeltaP, self.R, 0, terminal_prob = 0.02)
+            self.env = AM_ENV(robustEnv, self.StateSize, self.ActionSize, self.cost, self.s_init)
     
     #######################################################
     ###                 MAIN LOOP FUNCTIONS:            ###

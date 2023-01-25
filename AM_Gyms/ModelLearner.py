@@ -55,6 +55,13 @@ class ModelLearner():
         """returns StateSize, ActionSize, cost, s_init, doneState"""
         return (self.StateSize, self.ActionSize, self.cost, self.s_init, self.doneState)
     
+    def remove_done_transitions(self):
+        for state in range(self.StateSize-1):
+            for action in range(self.ActionSize):
+                self.T_counter[state, action, self.doneState] = 0
+                self.T[state,action] = self.T_counter[state,action] / np.sum(self.T_counter[state,action])
+        print (self.T)
+    
     def filter_T(self):
         """Filters all transitions with p<1/|S| from T"""
         p = min(1/self.StateSize, 0.05)
@@ -88,6 +95,7 @@ class ModelLearner():
         if modify:
             self.filter_T()
             self.add_costs()
+        self.remove_done_transitions()
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):

@@ -40,8 +40,8 @@ class ModelLearner_Robust():
         modelLearner.sample(eps, logging=logging)
         
         # Unpack values 
-        self.P, R_total, _R_biased = modelLearner.get_model()
-        self.R = R_total[:,self.ActionSize:] # removing non-measuring actions
+        P_total, R_total, _R_biased = modelLearner.get_model()
+        self.P, self.R = P_total[:,self.ActionSize:,:],  R_total[:,self.ActionSize:] # removing non-measuring actions
         self.Q = modelLearner.get_Q() [:,:self.ActionSize]
         self.Q_max = np.max(self.Q, axis=1)
         
@@ -58,6 +58,7 @@ class ModelLearner_Robust():
         
         # 1) Make a dictionary of all non-zero elements in P (Efficiency!)
         filter = np.nonzero(self.P[s,a])
+
         states, probs = np.arange(self.StateSize)[filter], self.P[s,a][filter]
         icvar_max, r = self.ICVaR_max[filter], self.R[s,a]
         
@@ -88,7 +89,6 @@ class ModelLearner_Robust():
         
         # 2) Repeatedly higher/lower probability of lowest/highest icvar elements
         sum_delta_p = np.sum(probs)
-        icvar_avg = probs*icvar
         changable_probs = list(range(len(probs)))   # list of probabilities we have not yet changed
         while changable_probs:
             # Higher probability of worst outcomes
@@ -107,7 +107,7 @@ class ModelLearner_Robust():
                 changable_probs.pop(-1)
                 
         # 3) Fix probability problems by editing last 'bad' change:
-        if m.isclose(sum_delta_p, 1, rel_tol=1e-10):
+        if m.isclose(sum_delta_p, 1, rel_tol=1e-5):
             pass
         # If our total probability is too low, we must compensate by upping the last probability we lowered.
         elif sum_delta_p < 1:
