@@ -30,8 +30,7 @@ import os
 # Agents
 import Baselines.AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
-from ACNO_Planning import ACNO_Planner
-from ACNO_Planning_Robust import ACNO_Planner_Robust, ACNO_Planner_Semi_Robust
+from ACNO_Planning import ACNO_Planner, ACNO_Planner_SemiRobust
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
 from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
 from Baselines.DRQN import DRQN_Agent
@@ -50,6 +49,9 @@ from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
 from AM_Gyms.AM_Env_wrapper import AM_Visualiser as visualiser
 from Baselines.ACNO_generalised.ACNO_ENV import ACNO_ENV
+
+from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
+from AM_Gyms.generic_gym import GenericGym
 
 # JSON encoder
 class NumpyEncoder(json.JSONEncoder):
@@ -77,6 +79,8 @@ parser.add_argument('-rep'              , default = './Data/',          help='Re
 parser.add_argument('-plot'             , default = "False",            help='Automatically plot data using Plot_Data.py (default: False)')
 parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
+
+parser.add_argument('-robust'           , default = 'n',                help='Option to use robust version of environment (either (n)o (default), (y)es, (p)lan only or (r)eal only. Currently only available for planner algorithms. ')
 parser.add_argument('-alpha'            , default = 0.3,                help='Risk-sensitivity factor, only used by robust alg.')
 
 args            = parser.parse_args()
@@ -91,6 +95,8 @@ nmbr_runs       = int(args.nmbr_runs)
 plotRepo        = args.plot_rep
 file_name       = args.f
 rep_name        = args.rep
+
+use_robust      = args.robust
 alpha           = float(args.alpha)
 
 if args.save == "False" or args.save == "false":
@@ -126,6 +132,11 @@ def get_env(seed = None):
         global MeasureCost
         global remake_env
         global env_size
+        
+        # Required for making robust env through generic-gym class
+        has_terminal_state = True
+        terminal_prob = 0.0
+        
         np.random.seed(seed)
         match env_name:
                 
@@ -220,15 +231,30 @@ def get_env(seed = None):
                         StateSize, ActionSize, s_init = env_size+3, 2, 0
                         if MeasureCost == -1:
                                 MeasureCost = 0.01
+                        has_terminal_state = False
+                        terminal_prob = 0.02
                 
                 case other:
                         print("Environment not recognised, please try again!")
                         return
                         
-        
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
-        return ENV
+        
+        if use_robust in ['y', 'p', 'r']:
+                print("Building robust environment:")
+                learner_robust = ModelLearner_Robust(ENV, alpha)
+                learner_robust.run(updates=1000, eps_modelLearner=10_000, logging=True)
+                P,R,Q,DeltaP,ICVaR = learner_robust.get_model()
+                env_robust = GenericGym(DeltaP, R, s_init, has_terminal_state, terminal_prob )
+                ENV_robust = wrapper(env_robust, StateSize, ActionSize, MeasureCost, s_init)
+        
+        match use_robust:
+                case 'y':       return ENV_robust, ENV_robust, ENV
+                case 'n':       return ENV, ENV, ENV
+                case 'p':       print ("Warning: currently only works for planning algorithms!"); return ENV, ENV_robust, ENV   
+                case 'r':       print ("Warning: currently only works for planning algorithms!"); return ENV_robust, ENV, ENV
+                case _  :       print ("Warning: robustness setting not recognised!")
         """" 
         Possible extentions: 
                 * Bigger settings
@@ -241,7 +267,7 @@ def get_env(seed = None):
 
 # Both final names and previous/working names are implemented here
 def get_agent(seed=None):
-        ENV = get_env(seed)
+        (ENV, ENV_planning, ENV_nonrobust) = get_env(seed)
         match algo_name:
                 case "AMRL":
                         agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
@@ -252,11 +278,9 @@ def get_agent(seed=None):
                 case "BAM_QMDP+":
                         agent = BAM_QMDP(ENV, offline_training_steps=25)
                 case "ATM":
-                        agent = ACNO_Planner(ENV)
-                case "ATM_Robust":
-                        agent = ACNO_Planner_Robust(ENV, alpha=alpha)
+                        agent = ACNO_Planner(ENV, ENV_planning)
                 case "ATM_Semi_Robust":
-                        agent = ACNO_Planner_Semi_Robust(ENV, alpha=alpha)
+                        agent = ACNO_Planner_SemiRobust(ENV, ENV_planning, ENV_nonrobust)
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OWP(ENV_ACNO)

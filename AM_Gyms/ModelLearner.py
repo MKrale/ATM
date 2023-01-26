@@ -43,12 +43,16 @@ class ModelLearner():
         self.lr = 0.3
         self.df = 0.95
     
-    def get_model(self):
+    def get_model(self, transformed = False):
         """Returns T, R, R_biased (Note: actionspace is \tilde{A} = AxM!) """
+        if transformed:
+            return self.T[:, self.CActionSize:, :], self.R[:, self.CActionSize:], self.R_biased[:,self.CActionSize:]
         return self.T, self.R, self.R_biased
     
-    def get_Q(self):
+    def get_Q(self, transformed=False):
         """Returns the Q-value function (NOTE: measuring cost currently unused, and action space \tilde{A}!)"""
+        if transformed:
+            return self.Q_real[:,self.CActionSize:]
         return self.Q_real
     
     def get_vars(self):
@@ -95,7 +99,6 @@ class ModelLearner():
         if modify:
             self.filter_T()
             self.add_costs()
-        self.remove_done_transitions()
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):

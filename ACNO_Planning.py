@@ -11,10 +11,12 @@ class ACNO_Planner():
     """Class for planning in ACNO-MDP environements. In contrast to Dyna-ATM, in this method
     we assume the model dynamics are known (i.e. we do not do RL)."""
     
-    def __init__(self, Env:AM_ENV, use_robust_MDP = True, alpha = 0.3 ):
+    def __init__(self, Env:AM_ENV, Env_planning:AM_ENV ):
         
         # Unpacking variables from environment:
-        self.env        = Env
+        self.env            = Env
+        self.env_planning   = Env_planning
+        
         self.StateSize, self.ActionSize, self.cost, self.s_init = self.env.get_vars()
         self.StateSize  += 1 #include done state
         self.doneState  = self.StateSize -1
@@ -30,33 +32,17 @@ class ACNO_Planner():
         self.df         = 0.95
         self.epsilon    = 0
         self.particles  = 100
-        self.use_robust_MDP = use_robust_MDP
-        self.alpha = alpha
         
         # TODO: Add ICVaR, ICVaR_max, alpha!
         
     def learn_model(self, eps = 5_000, logging = False):
-        if not self.use_robust_MDP:
-            # Get model
-            model = ModelLearner(self.env, self.df)
-            model.sample(eps, logging=logging)
-            P, R, _ = model.get_model()
-            self.P, self.R =P[:,self.ActionSize:,:], R[:,self.ActionSize:]
-            self.Q = model.get_Q()[:,self.ActionSize:]
-            self.Q_max = np.max(self.Q, axis = 1)
-        
-        elif self.use_robust_MDP:
-            # Get Model
-            robust_model = ModelLearner_Robust(self.env, self.alpha, self.df)
-            robust_model.run(m.ceil(eps/5), eps, logging=logging)
-            (self.P, self.R, self.Q, self.DeltaP, self.ICVaR ) = robust_model.get_model()
-            self.Q_max, self.ICVaR_max = np.max(self.Q, axis=1), np.max(self.ICVaR, axis = 1)
-            
-            # Transform environment
-            done_states = np.zeros(self.StateSize)
-            done_states[self.doneState] = 1
-            robustEnv = GenericGym(self.DeltaP, self.R, 0, terminal_prob = 0.02)
-            self.env = AM_ENV(robustEnv, self.StateSize, self.ActionSize, self.cost, self.s_init)
+
+        model = ModelLearner(self.env_planning, self.df)
+        model.sample(eps, logging=logging)
+        self.P, self.R, _ = model.get_model(True)
+        self.Q = model.get_Q(True)
+        self.Q_max = np.max(self.Q, axis = 1)
+
     
     #######################################################
     ###                 MAIN LOOP FUNCTIONS:            ###
@@ -108,6 +94,7 @@ class ACNO_Planner():
         self.b[self.s_init] = 1
         self.b_dict = {}
         self.b_dict[self.s_init] = 1
+        
         self.done=False
         
         # Logging variables
@@ -117,6 +104,7 @@ class ACNO_Planner():
 
     
     def update_model(self):
+        return
         for s in self.b_dict:
             self.Q[s,self.a] = self.df * np.sum(self.P[s,self.a] * self.Q_max) + self.R[s,self.a]
             self.Q_max[s] = np.max(self.Q[s])
@@ -212,19 +200,56 @@ class ACNO_Planner():
             MV += p* max(0.0, qmax - Q[s,a])
         return MV
 
+class ACNO_Planner_SemiRobust(ACNO_Planner):
+    
+    def __init__(self, Env: AM_ENV, Env_planning: AM_ENV, Env_real: AM_ENV):
+        super().__init__(Env, Env_planning)
+        self.env_real = Env_real
+        
+        self.P_real = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
+        self.Q_real = np.zeros( (self.StateSize, self.ActionSize) )
+        
+    def learn_model(self, eps=5000, logging=False):
+        super().learn_model(eps, logging)
+        
+        model_real = ModelLearner(self.env_real)
+        model_real.sample(eps)
+        self.P_real, _R, _Rb = model_real.get_model(True)
+        self.Q_real = model_real.get_Q(True)
 
-# from AM_Gyms.frozen_lake_v2 import FrozenLakeEnv_v2
-# from AM_Gyms.frozen_lake import FrozenLakeEnv
-
-# # Semi-slippery, larger   
-# # Env = AM_ENV( FrozenLakeEnv_v2(map_name = "8x8", is_slippery=True), StateSize=64, ActionSize=4, s_init=0, MeasureCost = 0.1 )
-
-# # semi-slippery, small
-# # Env = AM_ENV( FrozenLakeEnv_v2(map_name = "4x4", is_slippery=True), StateSize=16, ActionSize=4, s_init=0, MeasureCost = 0.1 )
-
-# # slippery, small
-# Env = AM_ENV( FrozenLakeEnv(map_name = "4x4", is_slippery=True), StateSize=16, ActionSize=4, s_init=0, MeasureCost = 0.1 )
-
-
-# planner = ACNO_Planning(Env)
-# print(planner.run(1000, logging = True))
+    def initialise_episode(self):
+        
+        # Regular planning vars
+        super().initialise_episode()
+    
+        # We use regular b's as the 'robust' b's, since we use those most often.
+        # We may also want to track the actual belief states, which we do with these:
+        self.b_real_dict, self.b_real_next_dict = {}, {}
+        self.b_real_dict[self.s_init], self.b_real_next_dict[self.s_init] = 1,1
+        
+    def update_step_vars(self):
+        super().update_step_vars()
+        self.b_real_dict = self.check_validity_belief(self.b_real_next_dict)
+        
+    def guess_next_state(self):
+        _, self.b_real_next_dict        = self.guess_next_state_general(self.b_dict, self.a, self.P)
+        self.b_next, self.b_next_dict   = self.guess_next_state_general(self.b_dict, self.a, self.P_real)
+        
+    def take_measurement(self):
+        super().take_measurement()
+        if self.m:
+            self.b_real_next_dict = self.b_next_dict.copy()
+    
+    def determine_measurement(self):
+        self.a_next = self.determine_action_general(self.b_next_dict, self.Q)
+        MV = self.get_MV_general_semirobust(self.b_real_next_dict, self.a_next, self.Q, self.Q_real)
+        self.m = MV >= self.cost
+    
+    def get_MV_general_semirobust(self,  b_real:dict, a, Q_plan, Q_real):
+        MV = 0
+        for (s,p) in b_real.items():
+            a_max_icvar = np.argmax(Q_plan[s])
+            MV += Q_real[s, a_max_icvar] * p
+        for (s,p) in b_real.items():
+            MV -= p*Q_real[s,a]
+        return MV

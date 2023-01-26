@@ -6,7 +6,7 @@ import numpy as np
 
 class GenericGym(gym.Env):
     
-    def __init__(self, P, R, s_init, terminal_states=None, terminal_prob=0):
+    def __init__(self, P, R, s_init, has_terminal_state=True, terminal_prob=0):
         
         self.P      = P
         self.R      = R
@@ -22,9 +22,9 @@ class GenericGym(gym.Env):
         self.observation_space = spaces.Discrete(self.StateSize)
         
         assert (np.shape(R) == (self.StateSize, self.ActionSize))
-        if terminal_states is not None:
-            assert(np.shape(terminal_states) == (self.StateSize,))
-        self.terminal_states = terminal_states
+        
+        # We assume the last state is the terminal state
+        self.has_terminal_state = has_terminal_state
         
         self.seed()
     
@@ -38,11 +38,9 @@ class GenericGym(gym.Env):
         reward = self.R[self.state, action]
         self.state = np.random.choice(self.StateSize, p=self.P[self.state, action])
         
-        done = False
-        if self.terminal_states is not None:
-            done = (self.terminal_states[self.state] )
+        done = (self.has_terminal_state and self.state == self.StateSize-1)
         done = done or self.terminal_prob > np.random.random()
-        
+
         return self.state, reward, done, {}
         
     def reset(self):
