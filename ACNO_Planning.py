@@ -148,7 +148,7 @@ class ACNO_Planner():
             thisQ += Q[s]*p
         # Choose optimal action according to thisQ, break ties randomly
         thisQMax = np.max(thisQ)
-        return int(np.random.choice(np.where(np.isclose(thisQ, thisQMax))[0]))
+        return int(np.random.choice(np.where(np.isclose(thisQ, thisQMax))))
     
     def guess_next_state(self):
         self.b_next, self.b_next_dict =  self.guess_next_state_general(self.b_dict, self.a, self.P)
@@ -208,6 +208,7 @@ class ACNO_Planner_SemiRobust(ACNO_Planner):
         
         self.P_real = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
         self.Q_real = np.zeros( (self.StateSize, self.ActionSize) )
+        self.Q_real_max = np.zeros ( (self.StateSize) )
         
     def learn_model(self, eps=5000, logging=False):
         super().learn_model(eps, logging)
@@ -216,6 +217,7 @@ class ACNO_Planner_SemiRobust(ACNO_Planner):
         model_real.sample(eps)
         self.P_real, _R, _Rb = model_real.get_model(True)
         self.Q_real = model_real.get_Q(True)
+        self.Q_real_max = np.max(self.Q_real, axis = 1)
 
     def initialise_episode(self):
         
@@ -230,6 +232,30 @@ class ACNO_Planner_SemiRobust(ACNO_Planner):
     def update_step_vars(self):
         super().update_step_vars()
         self.b_real_dict = self.check_validity_belief(self.b_real_next_dict)
+    
+    def determine_action_general(self, b, Q):
+        thisQ, thisQ_real = np.zeros(self.ActionSize), np.zeros(self.ActionSize)
+        # Determine 'Q-table' for current belief
+        for s in b:
+            p = b[s]
+            thisQ += Q[s]*p
+            thisQ_real += self.Q_real[s]*p
+        # Choose optimal action according to thisQ
+        thisQMax = np.max(thisQ)
+        filter_robust = np.isclose(thisQ, thisQMax, rtol=0.01, atol= 0.001)
+        optimal_actions = np.arange(self.ActionSize)[filter_robust]
+        
+        # If tied, further filter on real expected value
+        if np.size(optimal_actions) > 1:
+            thisQ_real_max = np.max(thisQ_real[optimal_actions])
+            filter_real = np.isclose(thisQ_real[optimal_actions], thisQ_real_max, rtol=0.01, atol= 0.001)
+            filter_combined = np.logical_and(filter_real, filter_robust)
+            optimal_actions = np.arange(self.ActionSize)[filter_combined]
+        
+        # break ties randomly
+        return int(np.random.choice(optimal_actions))
+        
+        
         
     def guess_next_state(self):
         _, self.b_real_next_dict        = self.guess_next_state_general(self.b_dict, self.a, self.P)
@@ -253,3 +279,28 @@ class ACNO_Planner_SemiRobust(ACNO_Planner):
         for (s,p) in b_real.items():
             MV -= p*Q_real[s,a]
         return MV
+    
+class ACNO_Planner_Correct(ACNO_Planner_SemiRobust):
+    
+    def determine_measurement(self):
+        
+        # determine non-measuring values
+        action_values = np.zeros(self.ActionSize)
+        for a_next in range(self.ActionSize):
+            for s in self.b_dict:
+                dp_this_state = ModelLearner_Robust.custom_delta_minimize(
+                    self.P_real[s, a_next], self.Q_max, 0.3 ) #NOTE: alpha put in manually!
+                action_values[a_next] += np.sum(self.b_dict[s]*dp_this_state*self.Q_max)
+        
+        self.a_next = np.argmax(action_values)
+        value_not_measuring = action_values[self.a_next]
+        
+        # Determine measuring values:
+        value_measuring = 0
+        for s in self.b_next_dict:
+            value_measuring += self.Q_max[s]
+        
+        MV = value_measuring - value_not_measuring
+        self.m = MV >= self.cost
+        
+        

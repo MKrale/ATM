@@ -30,7 +30,7 @@ import os
 # Agents
 import Baselines.AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
-from ACNO_Planning import ACNO_Planner, ACNO_Planner_SemiRobust
+from ACNO_Planning import ACNO_Planner, ACNO_Planner_SemiRobust, ACNO_Planner_Correct
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
 from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
 from Baselines.DRQN import DRQN_Agent
@@ -67,7 +67,7 @@ class NumpyEncoder(json.JSONEncoder):
 parser = argparse.ArgumentParser(description="Run tests on Active Measuring Algorithms")
 
 parser.add_argument('-algo'             , default = 'AMRL',             help='Algorithm to be tested.')
-parser.add_argument('-env'              , default = 'Lake_small_det',   help='Environment on which to perform the testing')
+parser.add_argument('-env'              , default = 'Lake',             help='Environment on which to perform the testing')
 parser.add_argument('-env_var'          , default = 'None',             help='Variant of the environment to use (if applicable)')
 parser.add_argument('-env_gen'          , default = 'None',             help='Size of the environment to use (if applicable)')
 parser.add_argument('-env_size'         , default = 0,                  help='Size of the environment to use (if applicable)')
@@ -76,12 +76,9 @@ parser.add_argument('-nmbr_eps'         , default = 500,                help='nm
 parser.add_argument('-nmbr_runs'        , default = 1,                  help='nmbr of runs to perform')
 parser.add_argument('-f'                , default = None,               help='File name (default: generated automatically)')
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
-parser.add_argument('-plot'             , default = "False",            help='Automatically plot data using Plot_Data.py (default: False)')
-parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
-
 parser.add_argument('-robust'           , default = 'n',                help='Option to use robust version of environment (either (n)o (default), (y)es, (p)lan only or (r)eal only. Currently only available for planner algorithms. ')
-parser.add_argument('-alpha'            , default = 0.3,                help='Risk-sensitivity factor, only used by robust alg.')
+parser.add_argument('-alpha'            , default = 0.8,                help='Risk-sensitivity factor, only used by robust alg.')
 
 args            = parser.parse_args()
 algo_name       = args.algo
@@ -281,6 +278,8 @@ def get_agent(seed=None):
                         agent = ACNO_Planner(ENV, ENV_planning)
                 case "ATM_Semi_Robust":
                         agent = ACNO_Planner_SemiRobust(ENV, ENV_planning, ENV_nonrobust)
+                case "ATM_Correct":
+                        agent = ACNO_Planner_Correct(ENV, ENV_planning, ENV_nonrobust)
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OWP(ENV_ACNO)

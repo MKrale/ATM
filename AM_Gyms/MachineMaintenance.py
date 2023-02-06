@@ -8,7 +8,7 @@ class Machine_Maintenance_Env(gym.Env):
     """
     Machine Maintenance environment.
     This openAI gym environment describes the Machine Maintenance MDP introduced in
-    in Delage and Mannor (2010) for testing robust policy finders.
+    in Delage and Mannor (2010) for testing robust policy finders, with some slight alterations.
     In short, the environment consists of N 'working' states (W1..WN), 
     one 'broken' state (B), and two repair states (R1, R2), representing two 
     difficulties of repair.
@@ -23,7 +23,7 @@ class Machine_Maintenance_Env(gym.Env):
     """
     Standard_Rewards    = { "R1": -0.1, "R2": -0.5, "B": -1, "W": 0}
     Standard_Probs      = {"Working": {"Next":0.8, "This":0.2, "R1":0.0, "R2":0.0},
-                       "Repair" : {"Next":0.3, "This":0.0, "R1":0.6, "R2":0.1}   }
+                       "Repair" : {"Next":0.0, "This":0.0, "R1":0.85, "R2":0.15}   }
     
     def __init__(self, N:int = 8, termination_prob:float = 0.02, rewards:dict = Standard_Rewards, probs:dict = Standard_Probs ):
         
