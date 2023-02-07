@@ -55,7 +55,7 @@ class BAM_QMDP:
         
         self.dynamicLR = False
         self.lr = 0.1                               # Learning rate, as used in standard Q updates. Currently unused, since we use a dynamic learning rate
-        self.df = 0.95                              # Discount Factor, as used in Q updates
+        self.df = 0.8                              # Discount Factor, as used in Q updates
         
         self.init_run_variables()
 
@@ -168,7 +168,7 @@ class BAM_QMDP:
             
             #9: Update variables for next step:
             #print(s,action,measure, b_next)
-            s = b_next
+            s = self.check_validity_belief(b_next)
             self.episodeReward  += reward - cost
             self.steps_taken    += 1
             self.totalSteps     += 1
@@ -244,6 +244,15 @@ Unbiased QTable: {}
             support += S[s]*(np.sum(self.alpha[s,action] ) - self.StateSize*self.initPrior )
         return support
 
+    def check_validity_belief(self, b:dict):
+        if self.doneState in b:
+            p_done = b[self.doneState]
+            b.pop(self.doneState)
+            scaling_factor = 1 / (1-p_done)
+            for s in b:
+                b[s] = b[s] * scaling_factor
+        return b
+    
     
     def _dict_to_arrays_(self, S):
         "Returns array of states and probabilities for belief state"
@@ -372,6 +381,7 @@ Unbiased QTable: {}
                     thisLR = self.lr * p1
                     totQUnbiased =  (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df * thisQ)
                     totQ = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQ) 
+
                 self.QTableUnbiased[s1,action] =  totQUnbiased
                 
                 # Update QTries & R only if real action
