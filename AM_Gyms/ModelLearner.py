@@ -6,7 +6,7 @@ from AM_Gyms.AM_Env_wrapper import AM_ENV
 class ModelLearner():
     """Class for learning ACNO-MDP """
 
-    def __init__(self, env:AM_ENV, df = 0.95):
+    def __init__(self, env:AM_ENV):
         # Set up AM-environment
         self.env = env
         
@@ -18,7 +18,6 @@ class ModelLearner():
         self.doneState = self.StateSize -1
         self.loopPenalty = 0 #self.cost
         self.donePenalty = 0 #self.cost
-        self.df_real = df    # discount factor, only impacts Q_real
         
         self.init_model()
 
@@ -35,36 +34,18 @@ class ModelLearner():
         self.R = self.R_counter / np.maximum(self.counter-1,1)
         self.R_biased = self.R_counter / np.maximum(self.counter-1,1) #Not yet biased...
         
-        self.Q_real = np.ones( (self.StateSize, self.ActionSize )) # The Q-value of the MDP
-        self.Q_real_max = np.ones( ( self.StateSize) )
-        
         # Variables for learning:
-        self.Q = 1/self.counter[:,:self.CActionSize] # The 'value' of checking a transition, i.e. the Q-value of this algorihtm
+        self.Q = 1/self.counter[:,:self.CActionSize]
         self.lr = 0.3
         self.df = 0.95
     
-    def get_model(self, transformed = False):
-        """Returns T, R, R_biased (Note: actionspace is \tilde{A} = AxM!) """
-        if transformed:
-            return self.T[:, self.CActionSize:, :], self.R[:, self.CActionSize:], self.R_biased[:,self.CActionSize:]
+    def get_model(self):
+        """Returns T, R, R_biased"""
         return self.T, self.R, self.R_biased
-    
-    def get_Q(self, transformed=False):
-        """Returns the Q-value function (NOTE: measuring cost currently unused, and action space \tilde{A}!)"""
-        if transformed:
-            return self.Q_real[:,self.CActionSize:]
-        return self.Q_real
     
     def get_vars(self):
         """returns StateSize, ActionSize, cost, s_init, doneState"""
         return (self.StateSize, self.ActionSize, self.cost, self.s_init, self.doneState)
-    
-    def remove_done_transitions(self):
-        for state in range(self.StateSize-1):
-            for action in range(self.ActionSize):
-                self.T_counter[state, action, self.doneState] = 0
-                self.T[state,action] = self.T_counter[state,action] / np.sum(self.T_counter[state,action])
-        print (self.T)
     
     def filter_T(self):
         """Filters all transitions with p<1/|S| from T"""
@@ -79,12 +60,14 @@ class ModelLearner():
         costs = np.zeros((self.StateSize, self.ActionSize))
         costs[:, :self.CActionSize] -= self.cost    # Measuring cost
         for a in range(self.ActionSize):
+            #print(self.T[:,a,:])
             selfprob = np.diagonal(self.T[:,a,:])
+            #print(selfprob)
             doneprob = self.T[:,a,self.doneState]
             costs[:,a] -= selfprob*self.loopPenalty + doneprob*self.donePenalty
         self.R_biased += costs
     
-    def sample(self, N, max_steps = 100, logging = True, includeCosts = True, modify = True):
+    def sample(self, N, max_steps = 500, logging = True, includeCosts = True, modify = True):
         """Learns the model using N episodes, returns episodic costs and steps"""
         # Intialisation
         self.init_model()
@@ -93,12 +76,12 @@ class ModelLearner():
         
         for eps in range(N):
             self.sample_episode(eps, max_steps)
-            if (eps+1) % (N/10) == 0 and logging:
-                print("{} exploration episodes completed!".format(eps+1))
-        self.update_Q_only()
+            if (eps+1) % 100 == 0 and logging:
+                print("{} exploration episodes completed!".format(eps))
         if modify:
             self.filter_T()
             self.add_costs()
+        print(self.T, self.R)
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):
@@ -140,7 +123,6 @@ class ModelLearner():
         self.counter[s_prev,ac] += 1
         self.T_counter[s_prev,ac,s_next] += 1
         self.R_counter[s_prev,ac] += reward
-        
         # update non-measuring actions counters
         anm = ac + self.CActionSize
         self.counter[s_prev,anm] += 1
@@ -148,23 +130,9 @@ class ModelLearner():
         self.R_counter[s_prev,anm] += reward
         
         # update model
-        self.T[s_prev] = self.T_counter[s_prev] / self.counter[s_prev,:,np.newaxis]
-        self.R[s_prev] = self.R_counter[s_prev] / np.maximum(self.counter[s_prev]-1,1)
+        self.T = self.T_counter / self.counter[:,:,np.newaxis]
+        self.R = self.R_counter / np.maximum(self.counter-1,1)
         
-        # update Q-values
-        self.Q_real[s_prev, ac] = self.df_real * np.sum(self.T[s_prev,ac]*self.Q_real_max) + self.R[s_prev,ac] 
-        self.Q_real[s_prev, anm] = self.df_real * np.sum(self.T[s_prev,anm]*self.Q_real_max) + self.R[s_prev,anm]
-        self.Q_real_max[s_prev] = np.max(self.Q_real[s_prev])
-    
-    def update_Q_only(self, updates = 100):
-        for i in range(updates):
-            saPairs = np.array(np.meshgrid(np.arange(self.StateSize), np.arange(self.ActionSize))).T.reshape(-1,2)
-            np.random.shuffle(saPairs)
-            for sa in saPairs:
-                s,a = sa[0], sa[1]
-                self.Q_real[s,a] = self.df_real * np.sum(self.T[s,a]*self.Q_real_max) + self.R[s,a]
-            self.Q_real_max = np.max(self.Q_real, axis=1)
-    
     def reset_env(self):
         self.env.reset()
         

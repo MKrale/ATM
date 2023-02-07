@@ -1,3 +1,9 @@
+"""
+
+OpenAI chain environment, as taken from https://github.com/parachutel/gym/blob/master/envs/toy_text/nchain.py .
+(but with values changed slightly according to the AMRL-paper.)
+"""
+
 import gym
 from gym import spaces
 from gym.utils import seeding

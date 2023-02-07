@@ -9,7 +9,6 @@ import numpy as np
 
 
 class QBasic:
-    """Class for standard Q-learning of AM-environments"""
     
     def __init__(self, ENV:AM_ENV):
         self.env = ENV
@@ -22,7 +21,6 @@ class QBasic:
         self.lr = 0.3
         self.df = 0.95
         self.selfLoopPenalty = self.MeasureCost
-        self.includeCost = False
         
         
     def update_Q(self,s,action,reward,obs):
@@ -44,8 +42,7 @@ class QBasic:
         (reward, done) = self.env.step(action, s)
         (obs, cost) = self.env.measure()
         
-        if self.includeCost:
-            reward -= cost
+        reward -= cost
         
         self.update_Q(s, action, reward, obs)
         self.update_T(s, action, obs)
@@ -73,6 +70,7 @@ class QBasic:
             if logging and i%100 == 0:
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( 
                         i, episodes, np.average(rewards[(i-100):i]), np.average(steps[(i-100):i]) ) )
+        print(self.Q)
         return np.sum(rewards), rewards, steps, np.ones(episodes)
     
 class QOptimistic(QBasic):
@@ -84,7 +82,7 @@ class QOptimistic(QBasic):
         self.optBias = 10**-600
         
     
-    def update_Q(self, s, action, reward, obs):
+    def update_Q(self, s, action, reward, cost, obs):
         Psi = 0
         Psi += np.sum(self.T[s,action] * np.max(self.Q, axis=1))
         self.Q_unbiased[s,action] = (1-self.lr) * self.Q[s,action] + self.lr * ( reward + self.df * Psi )
@@ -123,3 +121,4 @@ class QDyna(QBasic):
         r = self.R_counter[s,action]/np.sum(self.T_counter[s,action])
         #r -= self.MeasureCost
         self.update_Q(s,action,r,snext, isReal=False) #NO COST!!!
+        
