@@ -61,6 +61,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 parser = argparse.ArgumentParser(description="Run tests on Active Measuring Algorithms")
 
+# Defining all parser arguments:
 parser.add_argument('-algo'             , default = 'AMRL',             help='Algorithm to be tested.')
 parser.add_argument('-env'              , default = 'Lake_small_det',   help='Environment on which to perform the testing')
 parser.add_argument('-env_var'          , default = 'None',             help='Variant of the environment to use (if applicable)')
@@ -75,6 +76,7 @@ parser.add_argument('-plot'             , default = "False",              help='
 parser.add_argument('-plot_rep'         , default = './Final_Plots/',   help='Repository to store plots (if plotting is turend on)')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 
+# Unpacking for use in this file:
 args            = parser.parse_args()
 algo_name       = args.algo
 env_name        = args.env
@@ -118,12 +120,23 @@ MeasureCost_Chain_default       = 0.05
 remake_env                      = False
 
 def get_env(seed = None):
+        "Returns AM_Env as specified in global (user-specified) vars"
         global MeasureCost
         global remake_env
         global env_size
         np.random.seed(seed)
+        
+        # Basically, just a big messy pile of if/else statements...
         match env_name:
                 
+                # Loss-environment, called Measure Regret environment in paper.
+                case "Loss":
+                        env = Measure_Loss_Env()
+                        StateSize, ActionSize, s_init = 4, 2, 0
+                        if MeasureCost == -1:
+                                MeasureCost = 0.1
+                
+                # Frozen lake environment (includes all variants)
                 case "Lake":
                         ActionSize, s_init = 4,0
                         if MeasureCost == -1:
@@ -164,13 +177,14 @@ def get_env(seed = None):
                                         print("Environment var not recognised! (using deterministic variant)")
                                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                         
-                                        
+                # Taxi environment, as used in AMRL-Q paper. Not used in paper           
                 case "Taxi":
                         env = gym.make('Taxi-v3')
                         StateSize, ActionSize, s_init = 500, 6, -1
                         if MeasureCost == -1:
                                 MeasureCost = MeasureCost_Taxi_default
 
+                # Chain environment, as used in AMRL-Q paper. Not used in paper
                 case "Chain":
                         match env_size:
                                 case '10':
@@ -189,19 +203,15 @@ def get_env(seed = None):
                         ActionSize, s_init = 2, 0
                         if MeasureCost == -1:
                                 MeasureCost = MeasureCost_Chain_default
-
-                case "Loss":
-                        env = Measure_Loss_Env()
-                        StateSize, ActionSize, s_init = 4, 2, 0
-                        if MeasureCost == -1:
-                                MeasureCost = 0.1
-                
+              
+                # Sepsis environment, as used in ACNO-paper. Not used in paper
                 case 'Sepsis':
                         env = SepsisEnv()
                         StateSize, ActionSize, s_init = 720, 8, -1
                         if MeasureCost == -1:
                                 MeasureCost = 0.05
 
+                # Standard OpenAI Gym blackjack environment. Not used in paper
                 case 'Blackjack':
                         env = BlackjackEnv()
                         StateSize, ActionSize, s_init = 704, 2, -1
@@ -216,11 +226,6 @@ def get_env(seed = None):
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
         return ENV
-        """" 
-        Possible extentions: 
-                * Bigger settings
-                * Eventually: partial measurement envs
-        """
 
 ######################################################
         ###     Defining Agents        ###
@@ -228,22 +233,30 @@ def get_env(seed = None):
 
 # Both final names and previous/working names are implemented here
 def get_agent(seed=None):
+        'Returns the collect agent class, as specified by global (user-set) vars'
         ENV = get_env(seed)
         match algo_name:
+                # AMRL-Q, as specified in original paper
                 case "AMRL":
                         agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
+                # AMRL-Q, alter so it is completely greedy in last steps.
                 case "AMRL_greedy":
                         agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
+                # BAM_QMDP, named Dyna-ATMQ in paper. Variant with no offline training
                 case "BAM_QMDP":
                         agent = BAM_QMDP(ENV, offline_training_steps=0)
+                # BAM_QMDP, named Dyna-ATMQ in paper. Variant with 25 offline training steps per real step
                 case "BAM_QMDP+":
                         agent = BAM_QMDP(ENV, offline_training_steps=25)
+                # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OWP(ENV_ACNO)
+                # Observe-then-plan agent from ACNO-paper. As used in paper, slight alterations made from original
                 case "ACNO_OTP":
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OTP(ENV_ACNO)
+                # A number of generic RL-agents. We did not include these in the paper.
                 case "DRQN":
                         agent = DRQN_Agent(ENV)
                 case "QBasic":
@@ -260,19 +273,20 @@ def get_agent(seed=None):
         ###     Exporting Results       ###
 ######################################################
 
+# Automatically creates filename is not specified by user
 if file_name == None:
-        # file_name = 'AMData_{}_{}_eps={}_runs={}_t={}.json'.format(algo_name, envFullName, nmbr_eps, nmbr_runs, datetime.datetime.now().strftime("%d%m%Y%H%M%S"))
         file_name = 'AMData_{}_{}_{}.json'.format(algo_name, envFullName, str(int(float(args.m_cost)*100)).zfill(3))
-        #file_name = 'AMData_{}_{}.json'.format(algo_name, envFullName)
 
-
-        
+# Set measurecost if not set by environment.
 if args.m_cost == -1:
         args.m_cost == MeasureCost
+
 def PR_to_data(pr_time):
+        "Prints timecode as used in datafiles"
         return (datetime.datetime(1970, 1, 1) + datetime.timedelta(microseconds=pr_time)).strftime("%d%m%Y%H%M%S")
 
 def export_data(rewards, steps, measures,  t_start):
+        "Exports inputted data, as well as user-set variables, to JSON file"
         with open(rep_name+file_name, 'w') as outfile:
                 json.dump({
                         'parameters'            :vars(args),
@@ -310,11 +324,3 @@ for i in range(nmbr_runs):
         if remake_env:
                 agent = get_agent(i+1)
 print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))
-
-if makePlot:
-        if not doSave:
-                print("Cannot plot data if not saving!")
-        else:
-                command = 'python ./Plot_Data.py -folderData {0} -folderPlots {1} -file {2}'.format( rep_name, plotRepo, file_name)
-                print (command)
-                os.system (command)

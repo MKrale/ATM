@@ -173,10 +173,6 @@ class BAM_QMDP:
             self.steps_taken    += 1
             self.totalSteps     += 1
             
-            # if self.steps_taken > self.StateSize:
-            #     print(self.steps_taken)
-            #     print(s,action,measure, b_next)
-            
         ### END LOOP ###
         self.totalReward += self.episodeReward
         returnVars = (self.episodeReward, self.steps_taken, self.measurements_taken)
@@ -190,11 +186,6 @@ class BAM_QMDP:
         for i in range(nmbr_episodes):
             log_nmbr = 100
             if (i > 0 and i%log_nmbr == 0 and logmessages):
-                # for s in range(self.StateSize):
-                #     if s % 16 == 0:
-                #         print("==================================")
-                    
-                #     print(self.alpha_sum[s]-1)
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, nmbr_episodes, np.average(epreward[(i-log_nmbr):i]), np.average(epsteps[(i-log_nmbr):i]), np.average(epms[(i-log_nmbr):i]) ) )
                 
@@ -218,7 +209,7 @@ Unbiased QTable: {}
     #######################################################
 
     def get_action(self,S):
-        "Obtains the most greedy action (and its Measurement Regret) according to current belief and model."
+        "Obtains the most greedy action according to current belief and model."
 
         #Compute optimal action
         thisQ = np.zeros(self.ActionSize) # weighted value of each action, according to current belief
@@ -229,6 +220,7 @@ Unbiased QTable: {}
         return int(np.random.choice(np.where(np.isclose(thisQ,thisQMax))[0])) #randomize tiebreaks
         
     def get_loss(self, S, action):
+        "Returns measure regret of taking given action in given belief state"
         Loss = 0
         for s in S:
             p = S[s]
@@ -259,6 +251,7 @@ Unbiased QTable: {}
         return array[:,0], array[:,1] #states, then probs
        
     def _dict_to_particles_(self, S):
+        "Returns an array of particles for given belief state"
         states, probs = self._dict_to_arrays_(S)
         particles = []
         for (i,s) in enumerate(states):
@@ -270,6 +263,7 @@ Unbiased QTable: {}
         return particles
     
     def sample_T(self,s, action, nmbr=1):
+        "Returns a (sampled) transition function according to current dirichlet distribution"
         if self.use_exp:
             if self.alpha_sum[s,action] > 8:
                 return (self.alpha[s,action] - self.initPrior) / (self.alpha_sum[s,action] - ( self.StateSize * self.initPrior) )
@@ -336,32 +330,7 @@ Unbiased QTable: {}
             # If not measuring
             else:
                 pass
-                # rate = p1 * self.P_noMeasureRate / m.log(self.totalSteps + 10) / self.alpha_sum[s1,action]
-                # self.alpha[s1,action] += rate * (self.alpha[s1,action] - self.initPrior)
-                # self.alpha_sum[s1,action] += rate
-   
-    
-    # def update_Q(self, S1, S2, action, reward, isDone = False, isReal = True):
-        
-    #     for s1 in S1:
-    #         p1 = S1[s1]
-            
-            
-    #         if isReal:
-    #             self.QCounter += s1
-    #             self.QTableRewards += 0
-    #         p1 = S1[s1]
-            
-    #         if not isDone:
-    #             thisQ = 0
-                
-    #             for s2 in S2:
-    #                 p2 = S2[s2]
-                    
-    #                 #...
-                    
-            
-                
+                                     
     def update_Q_lastStep_only(self,S1, S2, action, reward, isDone = False, isReal = True):
         'Updates Q-table according to transition (S1, a, S2)'
 
@@ -395,14 +364,13 @@ Unbiased QTable: {}
                                 thisQUnbiased += p2*self.selfLoopPenalty*np.max(self.QTableUnbiased[s2])
                                 
 
-                    # Update Q-unbiased
+                # Update Q-unbiased
                 if self.dynamicLR:
                     print(" UNIMPLEMENTED! ")
                     pass
-                    #totQ = (previousQ*previousTries + (p1 * (self.df*thisQ + reward)) ) / (previousTries+p1) # Dynamic learning rate
                 else: 
                     thisLR = self.lr * p1
-                    totQUnbiased =  (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df * thisQ) # NOW ALSO WITHOUT DF!
+                    totQUnbiased =  (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df * thisQ)
                     totQ = (1-thisLR) * self.QTableUnbiased[s1,action] + thisLR * (reward + self.df*thisQ) 
                 self.QTableUnbiased[s1,action] =  totQUnbiased
                 
@@ -414,17 +382,13 @@ Unbiased QTable: {}
                 
                 # Implement bias
                 thisAlpha = np.sum(self.alpha[s1,action]) + p1
-                #print(thisAlpha)
-                #print(s1,action,S2, self.QTable[s1,action], self.QTableUnbiased[s1,action])
+
                 if thisAlpha >= self.NmbrOptimiticTries and self.optimism_type != "UCB":
                     self.QTable[s1,action] = totQ
-                    #print(totQ)
                 else:
                     match self.optimism_type:
                         case "RMAX+":
-                            #print(" Help?")
                             self.QTable[s1,action] = totQ + max(0,1-totQ) * ( (self.NmbrOptimiticTries - thisAlpha) / self.NmbrOptimiticTries)
-                            #self.QTable[s1,action] = (thisAlpha*totQUnbiased + self.optimisticPenalty*(self.NmbrOptimiticTries - thisAlpha)) / max(self.NmbrOptimiticTries, thisAlpha)
                         case "UCB":
                             optTerm = np.sqrt(2 * np.log10(self.totalSteps+2) / (self.QCounter+1)) # How do we do this +2 cleanly?
                             self.QTableUnbiased[s1,action] = totQ
@@ -433,6 +397,7 @@ Unbiased QTable: {}
                             self.QTable[s1,action] = 1
     
     def train_offline(self):
+        "Performs Dyna-style oflline training of Q-values using current transition function"
         for i in range(self.otsteps):
             # Choose random state and action
             s = np.random.randint(self.StateSize)
