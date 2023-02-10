@@ -26,6 +26,8 @@ class AM_Environment_tables():
     MeasureCost:int
     s_init:int
     
+    isLearned = False
+    
     def learn_model(self, env:Env):
         print("to be implemented!")
         
@@ -40,6 +42,7 @@ class AM_Environment_tables():
         learner.sample(N)
         self.P, self.R, _   = learner.get_model(transformed=True)
         self.Q              = learner.get_Q(transformed=True)
+        self.isLearned      = True
         
     def env_to_dict(self):
         return {
@@ -78,7 +81,16 @@ class AM_Environment_tables():
             model = json.load(outfile)
         
         self.env_from_dict(model)
+        self.isLearned = True
+        
+    def get_vars(self):
+        """Returns (statesize, actionsize, cost, s_init)"""
+        return self.StateSize, self.ActionSize, self.MeasureCost, self.s_init
 
+    def get_tables(self):
+        """Returns (P, R, Q)"""
+        return self.P, self.R, self.Q
+        
 class RAM_Environment_tables(AM_Environment_tables):
     
     Pmin:np.ndarray
@@ -92,9 +104,9 @@ class RAM_Environment_tables(AM_Environment_tables):
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         
         if N_robust is None:
-            N_robust = self.StateSize*self.ActionSize * 10
+            N_robust = self.StateSize*self.ActionSize * 50
         if N is None:
-            N = self.StateSize * self.ActionSize * 100
+            N = self.StateSize * self.ActionSize * 500
             
         robustLearner = ModelLearner_Robust(env, alpha)
         robustLearner.run(updates=N_robust, eps_modelLearner=N)
