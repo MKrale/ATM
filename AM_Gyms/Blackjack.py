@@ -176,3 +176,6 @@ class BlackjackEnv(gym.Env):
             return self._get_obs()
         else:
             return self._get_obs(), {}
+    
+    def getname(self):
+        return "Blackjack"

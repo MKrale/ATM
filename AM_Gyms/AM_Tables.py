@@ -48,7 +48,7 @@ class AM_Environment_tables():
         return {
                     "P":            self.P,
                     "R":            self.Q,
-                    "R":            self.R,
+                    "Q":            self.R,
                     "StateSize":    self.StateSize,
                     "ActionSize":   self.ActionSize,
                     "MeasureCost":  self.MeasureCost,
@@ -56,7 +56,7 @@ class AM_Environment_tables():
                 }
         
     def env_from_dict(self, dict):
-        self.P, self.R, self.Q = dict["P"], dict["R"], dict["Q"]
+        self.P, self.R, self.Q = np.array(dict["P"]), np.array(dict["R"]), np.array(dict["Q"])
         self.StateSize, self.ActionSize = dict["StateSize"], dict["ActionSize"]
         self.MeasureCost, self.s_init = dict["MeasureCost"], dict["s_init"]
         
@@ -128,29 +128,29 @@ class RAM_Environment_tables(AM_Environment_tables):
     def env_from_dict(self, dict):
         super().env_from_dict(dict)
         
-        self.Pmin, self.Pmax    = dict["Pmin"] , dict["Pmax"]
-        self.PrMdp, self.QrMdp  = dict["PrMdp"], dict["QrMdp"]
+        self.Pmin, self.Pmax    = np.array(dict["Pmin"]) , np.array(dict["Pmax"])
+        self.PrMdp, self.QrMdp  = np.array(dict["PrMdp"]), np.array(dict["QrMdp"])
 
 
 
 # Code for learning models:
 
-directoryPath = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
-alpha = 0.3
+# directoryPath = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
+# alpha = 0.3
 
-from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
-from AM_Gyms.Loss_Env import Measure_Loss_Env
-# from MachineMaintenance import Machine_Maintenance_Env
+# from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
+# from AM_Gyms.Loss_Env import Measure_Loss_Env
+# # from MachineMaintenance import Machine_Maintenance_Env
 
-env_names           = ["Machine_Maintenance_a03", "Loss_a03"]
+# env_names           = ["Machine_Maintenance_a03", "Loss_a03"]
 
-envs                = [Machine_Maintenance_Env(N=8), Measure_Loss_Env()]
-env_stateSize       = [11,4]
-env_actionSize      = [2,2]
-env_sInit           = [0,0]
+# envs                = [Machine_Maintenance_Env(N=8), Measure_Loss_Env()]
+# env_stateSize       = [11,4]
+# env_actionSize      = [2,2]
+# env_sInit           = [0,0]
 
-for (i,env) in enumerate(envs):
-    AM_env = AM_ENV(env, env_stateSize[i], env_actionSize[i], 0, env_sInit[i])
-    modelLearner = RAM_Environment_tables()
-    modelLearner.learn_model_AMEnv_alpha(AM_env, alpha)
-    modelLearner.export_model(env_names[i], directoryPath)
+# for (i,env) in enumerate(envs):
+#     AM_env = AM_ENV(env, env_stateSize[i], env_actionSize[i], 0, env_sInit[i])
+#     modelLearner = RAM_Environment_tables()
+#     modelLearner.learn_model_AMEnv_alpha(AM_env, alpha)
+#     modelLearner.export_model(env_names[i], directoryPath)

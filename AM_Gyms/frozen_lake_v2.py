@@ -99,6 +99,7 @@ class FrozenLakeEnv_v2(Env):
         self.desc = desc = np.asarray(desc, dtype="c")
         self.nrow, self.ncol = nrow, ncol = desc.shape
         self.reward_range = (0, 1)
+        self.is_slippery = is_slippery
 
         nA = 4
         nS = nrow * ncol
@@ -197,6 +198,14 @@ class FrozenLakeEnv_v2(Env):
             return int(self.s)
         else:
             return int(self.s), {"prob": 1}
+    
+    def getname(self):
+        if self.is_slippery:
+            variant_name = "semi-slippery"
+        else:
+            variant_name = "det"
+            
+        return "Lake_{}_{}".format(self.nrow, variant_name)
 
 # Elf and stool from https://franuka.itch.io/rpg-snow-tileset
 # All other assets by Mel Tillery http://www.cyaneus.com/

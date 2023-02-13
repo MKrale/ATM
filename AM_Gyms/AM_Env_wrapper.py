@@ -74,6 +74,9 @@ class AM_ENV():
     def reset(self):
         self.env.reset()
         self.steps_taken = 0
+        
+    def getname(self):
+        return self.env.getname()
 
 
     #######################################################

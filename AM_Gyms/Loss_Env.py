@@ -53,10 +53,13 @@ class Measure_Loss_Env(gym.Env):
                     next_state = 3
                     done = True
                 case 3:
-                    print("Error: this shouldn't happen...")
+                    raise Exception("Invalid state: agent tried moving when done!")
         self.state = next_state
         return self.state, reward, done, {}
 
     def reset(self):
         self.state = 0
         return self.state
+
+    def getname(self):
+        return "Loss"

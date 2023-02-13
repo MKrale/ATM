@@ -53,7 +53,6 @@ class ACNO_Planner():
         if logging:
             print("starting learning of model...")
         self.learn_model(logging=logging)
-        print(self.Q)
         rewards, steps, measurements = np.zeros(eps), np.zeros(eps), np.zeros(eps)
         log_nmbr = 100
         
@@ -289,7 +288,7 @@ class ACNO_Planner_Correct(ACNO_Planner_SemiRobust):
         for a_next in range(self.ActionSize):
             for s in self.b_dict:
                 dp_this_state = ModelLearner_Robust.custom_delta_minimize(
-                    self.P_real[s, a_next], self.Q_max, 0.3 ) #NOTE: alpha put in manually!
+                    self.P_real[s, a_next], self.Q_max ) #NOTE: alpha put in manually!
                 action_values[a_next] += np.sum(self.b_dict[s]*dp_this_state*self.Q_max)
         
         self.a_next = np.argmax(action_values)

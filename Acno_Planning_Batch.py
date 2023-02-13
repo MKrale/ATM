@@ -2,10 +2,10 @@ import numpy as np
 from collections import deque 
 
 
-from AM_Tables import AM_Environment_tables, RAM_Environment_tables
+from AM_Gyms.AM_Tables import AM_Environment_tables, RAM_Environment_tables
 from AM_Gyms.AM_Env_wrapper import AM_ENV
 
-class ACNO_Planner_batch():
+class ACNO_Planner_Batch():
     
     def __init__(self, Env:AM_ENV, tables = AM_Environment_tables, df=0.95):
         
@@ -28,8 +28,8 @@ class ACNO_Planner_batch():
             print("Start planning:")
         
         for i in range(eps):
-            reward, steps, measurements = self.run_episode()
-            rewards[i], steps[i], measurements[i] = reward, steps, measurements
+            reward, step, measurement = self.run_episode()
+            rewards[i], steps[i], measurements[i] = reward, step, measurement
             if (i > 0 and i%log_nmbr == 0 and logging):
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, eps, np.average(rewards[(i-log_nmbr):i]), np.average(steps[(i-log_nmbr):i]), np.average(measurements[(i-log_nmbr):i]) ) )
@@ -38,40 +38,40 @@ class ACNO_Planner_batch():
     
     def run_episode(self):
         
-        BeliefArray = deque({self.s_init:1},maxlen=self.batchSize)
-        ActionArray, MeasureArray = deque(self.batchSize), deque(self.batchSize)
+        arraysize = self.batchSize + 2
+        BeliefArray = np.empty(arraysize, dtype=dict)
+        ActionArray, MeasureArray = np.zeros(arraysize, dtype=int), np.zeros(arraysize,dtype=int)
+        BeliefArray[0] = {0:1}
         t = 0
         done = False
         total_reward, total_steps, total_measures = 0, 0, 0
         
         while not done:
-            
             if t == 0:
-                ActionArray.append(self.determine_action(BeliefArray[t]))
+                ActionArray[t] = self.determine_action(BeliefArray[t])
                 
-            BeliefArray.append(  self.compute_next_belief   (BeliefArray[t], ActionArray[t]) )
-            ActionArray.append(  self.determine_action      (BeliefArray[t]) )
-            MeasureArray.append( self.determine_measurement (BeliefArray[t+1], ActionArray[t+1]) )
+            BeliefArray[t+1] = self.compute_next_belief   (BeliefArray[t], ActionArray[t]) 
+            ActionArray[t+1] = self.determine_action      (BeliefArray[t]) 
+            MeasureArray[t]  = self.determine_measurement (BeliefArray[t+1], ActionArray[t+1]) 
             
             if MeasureArray[t]:
-                reward, done= self.execute_actions_all(ActionArray, BeliefArray)
-                BeliefArray.clear(), ActionArray.clear(), MeasureArray.clear()
+                reward, done = self.execute_actions_all(ActionArray, BeliefArray)
                 BeliefArray[0], cost = self.measure()
                 
-                total_reward += reward
+                total_reward += reward - cost
                 total_measures += 1
                 total_steps += t
                 t = 0
             
-            elif t > self.batchSize:
+            elif t >= self.batchSize-2: # Maybe also if we think chance of being done is sufficiently big?
                 reward, done, deltaT = self.execute_action(ActionArray, BeliefArray)
-                for i in range(deltaT):
-                    BeliefArray.popleft(), ActionArray.popleft(), MeasureArray.popleft()
+                np.roll(BeliefArray, deltaT), np.roll(ActionArray, deltaT), np.roll(MeasureArray, deltaT)
                     
                 total_reward += reward
                 total_steps += deltaT
                 t -= deltaT
-            
+            else:
+                t += 1
         
         return total_reward, total_steps, total_measures
     
@@ -87,9 +87,11 @@ class ACNO_Planner_batch():
     
     def execute_actions_all(self, ActionArray, BeliefArray):
         totalReward = 0
+        done = False
         for a in ActionArray:
             reward, done = self.env.step(a)
             totalReward += reward
+            print(done)
             if done:
                 break
         return totalReward, done
@@ -123,7 +125,7 @@ def optimal_action(b:dict, Q1:np.ndarray, Q2:np.ndarray = None):
     
     if np.size(optimal_actions) > 1 and Q2 != None:
         print("TBW")
-    
+
     return int(np.random.choice(optimal_actions))
 
 def next_belief(b:dict, a:int, P:np.ndarray, min_probability_considered:float = 0.01):

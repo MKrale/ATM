@@ -57,3 +57,6 @@ class NChainEnv(gym.Env):
     def reset(self):
         self.state = 0
         return self.state
+    
+    def getname(self):
+        return "Chain_{}".format(self.n)

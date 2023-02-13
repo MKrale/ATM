@@ -35,6 +35,7 @@ from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
 from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
 from Baselines.DRQN import DRQN_Agent
 from Baselines.DynaQ import QBasic, QOptimistic, QDyna
+from Acno_Planning_Batch import ACNO_Planner_Batch
 
 # Environments
 from AM_Gyms.NchainEnv import NChainEnv
@@ -44,6 +45,7 @@ from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
 from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
+from AM_Gyms.AM_Tables import AM_Environment_tables
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -91,7 +93,6 @@ env_gen         = args.env_gen
 MeasureCost     = float(args.m_cost)
 nmbr_eps        = int(args.nmbr_eps)
 nmbr_runs       = int(args.nmbr_runs)
-plotRepo        = args.plot_rep
 file_name       = args.f
 rep_name        = args.rep
 
@@ -102,11 +103,6 @@ if args.save == "False" or args.save == "false":
         doSave = False
 else:
         doSave = True
-
-if args.plot == "False" or args.plot == "false":
-        makePlot = False
-else:
-        makePlot = True
 
 # Create name for Data file
 envFullName = env_name
@@ -132,6 +128,7 @@ def get_env(seed = None):
         global MeasureCost
         global remake_env
         global env_size
+        global env_full_name
         
         # Required for making robust env through generic-gym class
         has_terminal_state = True
@@ -275,7 +272,8 @@ def get_env(seed = None):
 
 # Both final names and previous/working names are implemented here
 def get_agent(seed=None):
-
+        
+        env_folder_name = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
         (ENV, ENV_planning, ENV_nonrobust) = get_env(seed)
         match algo_name:
                 # AMRL-Q, as specified in original paper
@@ -298,6 +296,14 @@ def get_agent(seed=None):
                         agent = ACNO_Planner_SemiRobust(ENV, ENV_planning, ENV_nonrobust)
                 case "ATM_Correct":
                         agent = ACNO_Planner_Correct(ENV, ENV_planning, ENV_nonrobust)
+                case "ATM_Batch":
+                        table = AM_Environment_tables()
+                        try:
+                                table.import_model(fileName = ENV.getname(), folder = env_folder_name)
+                        except FileNotFoundError:
+                                table.learn_model_AMEnv(ENV)
+                                table.export_model( ENV.getname(), env_folder_name )
+                        agent = ACNO_Planner_Batch(ENV, table)
                 # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)

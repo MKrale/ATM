@@ -77,7 +77,7 @@ class Machine_Maintenance_Env(gym.Env):
             case _          : print("Warning: entered impossible state {}".format(self.state))
         
         done = np.random.rand() < self.done_prob
-        return self.state, reward, done, {}
+        return self.state+2, reward, done, {}
     
     def reset(self):
         self.state = 0
@@ -95,4 +95,7 @@ class Machine_Maintenance_Env(gym.Env):
             
             probs[action] = action_probs
         return probs
+    
+    def getname(self):
+        return "Maintenance_N{}".format(self.N)
         

@@ -380,6 +380,14 @@ class FrozenLakeEnv(Env):
 
             pygame.display.quit()
             pygame.quit()
+    
+    def getname(self):
+        if self.is_slippery:
+            variant_name = "slippery"
+        else:
+            variant_name = "det"
+            
+        return "Frozen_{}_{}".format(self.nrow, variant_name)
 
 
 # Elf and stool from https://franuka.itch.io/rpg-snow-tileset
