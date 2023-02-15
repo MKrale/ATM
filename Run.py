@@ -18,12 +18,10 @@ sys.path.append(os.path.join(sys.path[0],"Baselines", "ACNO_generalised"))
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
-import bottleneck as bn
 import time as t
 import datetime
 import json
 import argparse
-from scipy.signal import savgol_filter
 from typing import List, Optional
 import os
 
@@ -33,7 +31,6 @@ from BAM_QMDP import BAM_QMDP
 from ACNO_Planning import ACNO_Planner, ACNO_Planner_SemiRobust, ACNO_Planner_Correct
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
 from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
-from Baselines.DRQN import DRQN_Agent
 from Baselines.DynaQ import QBasic, QOptimistic, QDyna
 from Acno_Planning_Batch import ACNO_Planner_Batch
 
