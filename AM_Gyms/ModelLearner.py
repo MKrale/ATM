@@ -30,6 +30,8 @@ class ModelLearner():
         self.T_counter[self.doneState,:,self.doneState] = 1
         self.T = self.T_counter / self.counter[:,:,np.newaxis]
         
+        self.T_dict = {}
+        self.R_dict = {}
         
         self.R_counter = np.zeros((self.StateSize, self.ActionSize))
         self.R = self.R_counter / np.maximum(self.counter-1,1)
@@ -48,6 +50,23 @@ class ModelLearner():
         if transformed:
             return self.T[:, self.CActionSize:, :], self.R[:, self.CActionSize:], self.R_biased[:,self.CActionSize:]
         return self.T, self.R, self.R_biased
+    
+    def get_T_dictionary(self):
+        """returns T in the form of dictionary"""
+        return self.T_dict
+    
+    def create_dictionaries(self):
+        
+        for s in range(self.StateSize):
+            self.T_dict[s] = {}
+            for a in range(self.CActionSize):
+                self.T_dict[s][a] = {}
+                for (s,p) in enumerate(self.T[s,a]):
+                    if p != 0:
+                        self.T_dict[s][a][s] = p
+        
+
+        
     
     def get_Q(self, transformed=False):
         """Returns the Q-value function (NOTE: measuring cost currently unused, and action space \tilde{A}!)"""

@@ -11,7 +11,7 @@ class AM_ENV():
     and adds a seperate observe-function.
     """
 
-    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = 10_000, max_reward = 1, is_factored = True):
+    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = 10_000, max_reward = 1):
         self.env = env
         self.StateSize = StateSize
         self.ActionSize = ActionSize    # Is there any way to get these two from the env. itself?
@@ -21,7 +21,6 @@ class AM_ENV():
         self.max_steps = max_steps
         self.steps_taken = 0
         self.reward_factor = 1.0 / max_reward   # makes sure rewards are always 'normalised'
-        self.is_factored = is_factored
 
         self.log_choices = log_choices
         if self.log_choices:
@@ -36,14 +35,6 @@ class AM_ENV():
     def get_vars(self):
         "Returns StateSize, ActionSize, MeasureCost and s_init (-1 if random)"
         return (self.StateSize, self.ActionSize, self.MeasureCost, self.s_init)
-    
-    def step_and_measure(self,action): #Obsolete
-        (obs, reward, done, info) = self.env.step(action)
-        self.obs = obs
-        return (obs, reward, done)
-    
-    def step_no_measure(self,action): #Obsolete
-        return self.step(action)
     
     def step(self, action, s = None):
         "Perform action on environment, without returning an observation"

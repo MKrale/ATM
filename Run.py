@@ -79,7 +79,7 @@ parser.add_argument('-f'                , default = None,               help='Fi
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 parser.add_argument('-robust'           , default = 'n',                help='Option to use robust version of environment (either (n)o (default), (y)es, (p)lan only or (r)eal only. Currently only available for planner algorithms. ')
-parser.add_argument('-alpha'            , default = 0.8,                help='Risk-sensitivity factor, only used by robust alg.')
+parser.add_argument('-alpha'            , default = 0.5,                help='Risk-sensitivity factor, only used by robust alg.')
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:

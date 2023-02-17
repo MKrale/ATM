@@ -101,6 +101,7 @@ class ACNO_Planner_Robust(ACNO_Planner):
         
         self.df         = df
         self.epsilon    = 0
+
     
     def determine_action(self, b):
         return optimal_action(b, self.Q, self.QReal)
@@ -129,7 +130,7 @@ def optimal_action(b:dict, Q1:np.ndarray, Q2:np.ndarray = None, loopPenalty = No
         thisQ1 += prob * Q1[state]
     
     thisQ1Max = np.max(thisQ1)
-    filter = np.isclose(thisQ1, thisQ1Max, rtol=0.01, atol= 0.001)
+    filter = np.isclose(thisQ1, thisQ1Max, rtol=0.001, atol= 1e-15)
     optimal_actions = np.arange(actionsize)[filter]
 
     
@@ -140,32 +141,36 @@ def optimal_action(b:dict, Q1:np.ndarray, Q2:np.ndarray = None, loopPenalty = No
             thisQ2 += prob * Q1[state]
             
         thisQ2Max = np.max(thisQ2[filter])
-        filter2 = np.isclose(thisQ2, thisQ2Max, rtol=0.001, atol= 0.0001)
+        filter2 = np.isclose(thisQ2, thisQ2Max, rtol=0.001, atol= 1e-15)
         filtersCombined = np.logical_and(filter, filter2)
         optimal_actions = np.arange(actionsize)[filtersCombined]
 
     
     return int(np.random.choice(optimal_actions))
 
-def next_belief(b:dict, a:int, P:np.ndarray, min_probability_considered:float = 0.001):
+def next_belief(b:dict, a:int, P:dict, min_probability_considered:float = 0.001):
     """computes next belief state, according to current belief b, action a and transition function P.
     All belief probabilities smaller than min_probability_considered are ignored (for efficiency reasons)."""
     
-    statesize = np.shape(P)[0]
-    b_next_array = np.zeros(statesize)
+    b_next = {}
     
-    for (state, prob) in b.items():
-        b_next_array += P[state,a] * prob
+    for (state, beliefprob) in b.items():
+        for (next_state, transitionprob) in P[state][a].items():
+            if next_state in b_next:
+                b_next[next_state] += beliefprob * transitionprob
+            else:
+                b_next[next_state] = beliefprob * transitionprob
     
-    filter = b_next_array >= min_probability_considered
-    states = np.arange(statesize)[filter]
-    b_next_array = b_next_array[filter]
-    b_next_array = b_next_array / np.sum(b_next_array)
+    # TODO: filter states that are too small
+    # filter = b_next_array >= min_probability_considered
+    # states = np.arange(statesize)[filter]
+    # b_next_array = b_next_array[filter]
+    # b_next_array = b_next_array / np.sum(b_next_array)
 
     
-    b_next = dict()
-    for (state, prob) in zip(states, b_next_array):
-        b_next[state] = prob
+    # b_next = dict()
+    # for (state, prob) in zip(states, b_next_array):
+    #     b_next[state] = prob
     
     return b_next
 

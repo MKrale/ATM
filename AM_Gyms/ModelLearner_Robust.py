@@ -49,7 +49,7 @@ class ModelLearner_Robust():
         self.DeltaP = np.copy(self.P)
     
     def update_Q(self, s, a):
-        """Updates Q-table according to (known) model dynamics"""
+        """Updates Q-table according to (known) model dynamics ()"""
         self.Q[s,a] = self.df * np.sum( self.P[s,a] * self.Q_max ) + self.R[s,a]
         self.Q_max[s] = np.max(self.Q[s])
     
@@ -152,16 +152,34 @@ class ModelLearner_Robust():
             np.random.shuffle(S)
             for s in S:
                 a = self.pick_action(s)
-                self.update_Q(s,a)
                 self.update_ICVaR(s, a)
-                s= self.decide_next_s(s,a)
                 
             if (i%(updates/10) == 0 and logging):
                 print("Episode {} completed!".format(i+1))
+        
+        self.calculate_model_dicts()
 
     def get_model(self):
         """Return all model tables (P, R, Q, DeltaP, ICVaR)"""
-        return (self.P, self.R, self.Q, self.DeltaP, self.ICVaR)
+        return (self.P_dict, self.R, self.Q, self.DeltaP_dict, self.ICVaR)
+
+    def get_model_dictionaries(self):
+        """returns both P and DeltaP as dictionaries"""
+        return (self.P_dict, self.DeltaP_dict)
+    
+    
+    def calculate_model_dicts(self):
+        
+        self.P_dict, self.DeltaP_dict = {}, {}
+        for s in range(self.StateSize):
+            self.P_dict[s] = {}; self.DeltaP_dict[s] = {}
+            for a in range(self.ActionSize):
+                self.P_dict[s][a] = {}; self.DeltaP_dict[s][a] = {}
+                for (snext,p) in enumerate(self.P[s,a]):
+                    if p != 0:
+                        self.P_dict[s][a][snext] = p
+                        self.DeltaP_dict[s][a][snext] = self.DeltaP[s,a,snext]
+                        
 
 # Code for testing:
 

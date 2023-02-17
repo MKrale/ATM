@@ -14,10 +14,21 @@ class NumpyEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
+    
+def jsonKeys2int(x):
+    if isinstance(x, dict):
+        newdict = {}
+        for (k,v) in x.items():
+            if k.isdigit():
+                newdict[int(k)] = v
+            else:
+                newdict[k] = v
+        return newdict
+    return x
 
 class AM_Environment_tables():
     
-    P:np.ndarray
+    P:dict
     R:np.ndarray
     Q:np.ndarray
     
@@ -56,11 +67,10 @@ class AM_Environment_tables():
                 }
         
     def env_from_dict(self, dict):
-        self.P, self.R, self.Q = np.array(dict["P"]), np.array(dict["R"]), np.array(dict["Q"])
+        self.P, self.R, self.Q = dict["P"], np.array(dict["R"]), np.array(dict["Q"])
         self.StateSize, self.ActionSize = dict["StateSize"], dict["ActionSize"]
         self.MeasureCost, self.s_init = dict["MeasureCost"], dict["s_init"]
-        print(self.Q)
-        
+    
     def export_model(self, fileName, folder = None):
         
         if folder is None:
@@ -79,7 +89,7 @@ class AM_Environment_tables():
         fullPath = os.path.join(folder,fileName)
         
         with open(fullPath, 'r') as outfile:
-            model = json.load(outfile)
+            model = json.load(outfile, object_hook = jsonKeys2int)
         
         self.env_from_dict(model)
         self.isLearned = True
@@ -94,10 +104,10 @@ class AM_Environment_tables():
         
 class RAM_Environment_tables(AM_Environment_tables):
     
-    Pmin:np.ndarray
-    Pmax:np.ndarray
+    Pmin:dict
+    Pmax:dict
     
-    PrMdp:np.ndarray
+    PrMdp:dict
     QrMdp:np.ndarray
     
     def learn_model_RAMEnv_alpha(self, env: Env, alpha:float, N=None, N_robust=None, df = 0.8):
@@ -106,7 +116,7 @@ class RAM_Environment_tables(AM_Environment_tables):
         
         # NOTE: these numbers are just guesses, I should investigate this further/maybe do some check?
         if N_robust is None:
-            N_robust = self.StateSize*self.ActionSize * 50
+            N_robust = np.max([self.StateSize*self.ActionSize, 500])
         if N is None:
             N = self.StateSize * self.ActionSize * 1000
         
@@ -114,7 +124,14 @@ class RAM_Environment_tables(AM_Environment_tables):
         robustLearner.run(updates=N_robust, eps_modelLearner=N)
         
         self.P, self.R, self.Q, self.PrMdp, self.QrMdp = robustLearner.get_model()
-        self.Pmin, self.Pmax = np.maximum(self.P-alpha, 0), np.minimum(self.P+alpha, 1)
+        
+        self.Pmin, self.Pmax = {}, {}
+        for s in range(self.StateSize):
+            self.Pmin[s], self.Pmax[s] = {}, {}
+            for a in range(self.ActionSize):
+                self.Pmin[s][a], self.Pmax[s][a] = {}, {}
+                for (snext, prob) in self.P[s][a].items():
+                    self.Pmin[s][a][snext], self.Pmax[s][a][snext] = np.max([prob-alpha, 0]), np.min([prob+alpha, 1])
 
         
     def env_to_dict(self):
@@ -130,13 +147,16 @@ class RAM_Environment_tables(AM_Environment_tables):
     def env_from_dict(self, dict):
         super().env_from_dict(dict)
         
-        self.Pmin, self.Pmax    = np.array(dict["Pmin"]) , np.array(dict["Pmax"])
-        self.PrMdp, self.QrMdp  = np.array(dict["PrMdp"]), np.array(dict["QrMdp"])
-
+        self.Pmin, self.Pmax    = dict["Pmin"] , dict["Pmax"]
+        self.PrMdp, self.QrMdp  = dict["PrMdp"], np.array(dict["QrMdp"])
+        
     def get_robust_MDP_tables(self):
         "returns P & Q for robust MDP"
         return self.PrMdp, self.QrMdp
 
+class IntKeyDict(dict):
+    def __setitem__(self, key, value):
+        super().__setitem__(int(key), value)
 
 # Code for learning models:
 
