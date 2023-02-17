@@ -1,58 +1,26 @@
 import numpy as np
-import math as m
+from collections import deque 
 
 
-from AM_Gyms.ModelLearner import ModelLearner
-from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
+from AM_Gyms.AM_Tables import AM_Environment_tables, RAM_Environment_tables
 from AM_Gyms.AM_Env_wrapper import AM_ENV
-from AM_Gyms.generic_gym import GenericGym
 
 class ACNO_Planner():
-    """Class for planning in ACNO-MDP environements. In contrast to Dyna-ATM, in this method
-    we assume the model dynamics are known (i.e. we do not do RL)."""
     
-    def __init__(self, Env:AM_ENV, Env_planning:AM_ENV ):
+    def __init__(self, Env:AM_ENV, tables = AM_Environment_tables, df=0.95):
         
-        # Unpacking variables from environment:
-        self.env            = Env
-        self.env_planning   = Env_planning
-        
-        self.StateSize, self.ActionSize, self.cost, self.s_init = self.env.get_vars()
-        self.StateSize  += 1 #include done state
-        self.doneState  = self.StateSize -1
-        
-        # Setting up tables:
-        self.P          = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
-        self.R          = np.zeros( (self.StateSize, self.ActionSize) )
-        self.Q          = np.zeros( (self.StateSize, self.ActionSize) )
-        self.Q_max      = np.zeros( self.StateSize)
-        
-        
-        # Other variables:
-        self.df         = 0.95
-        self.epsilon    = 0
-        self.particles  = 100
-        
-        # TODO: Add ICVaR, ICVaR_max, alpha!
-        
-    def learn_model(self, eps = 5_000, logging = False):
+        self.env        = Env
+        self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
+        self.P, _R, self.Q = tables.get_tables()
 
-        model = ModelLearner(self.env_planning, self.df)
-        model.sample(eps, logging=logging)
-        self.P, self.R, _ = model.get_model(True)
-        self.Q = model.get_Q(True)
-        self.Q_max = np.max(self.Q, axis = 1)
-
+        self.df          = df
+        self.epsilon     = 0
+        self.loopPenalty = 0.95
     
-    #######################################################
-    ###                 MAIN LOOP FUNCTIONS:            ###
-    #######################################################  
- 
-    def run(self, eps, logging = False):
+    def run(self, eps, logging=False):
         
         if logging:
             print("starting learning of model...")
-        self.learn_model(logging=logging)
         rewards, steps, measurements = np.zeros(eps), np.zeros(eps), np.zeros(eps)
         log_nmbr = 100
         
@@ -60,246 +28,152 @@ class ACNO_Planner():
             print("Start planning:")
         
         for i in range(eps):
-            self.run_episode()
-            rewards[i], steps[i], measurements[i] = self.episode_reward, self.steps_taken, self.measurements_taken
+            reward, step, measurement = self.run_episode()
+            rewards[i], steps[i], measurements[i] = reward, step, measurement
             if (i > 0 and i%log_nmbr == 0 and logging):
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, eps, np.average(rewards[(i-log_nmbr):i]), np.average(steps[(i-log_nmbr):i]), np.average(measurements[(i-log_nmbr):i]) ) )
             
         return (np.sum(rewards), rewards, steps, measurements)
-            
+    
     def run_episode(self):
         
-        self.initialise_episode()
-        
-        while not self.done:
-            
-            self.determine_action()
-            self.guess_next_state()
-            self.determine_measurement()
-            self.take_action()
-            self.take_measurement()
-            self.update_model()
-            self.update_step_vars()
-  
-    #######################################################
-    ###                 LOOP STEPS FUNCTIONS:           ###
-    #######################################################          
-
-    def initialise_episode(self):
         self.env.reset()
+        currentBelief, nextBelief = {0:1}, {}
+        nextAction:int; currentAction:int; currentMeasuring:bool
+        done = False
+        total_reward, total_steps, total_measures = 0, 0, 0
         
-        self.b = np.zeros(self.StateSize)
-        self.b[self.s_init] = 1
-        self.b_dict = {}
-        self.b_dict[self.s_init] = 1
+        currentAction = self.determine_action(currentBelief)
         
-        self.done=False
-        
-        # Logging variables
-        self.measurements_taken = 0
-        self.episode_reward     = 0
-        self.steps_taken        = 0
+        while not done:
 
-    
-    def update_model(self):
-        return
-        for s in self.b_dict:
-            self.Q[s,self.a] = self.df * np.sum(self.P[s,self.a] * self.Q_max) + self.R[s,self.a]
-            self.Q_max[s] = np.max(self.Q[s])
-    
-    def update_step_vars(self):
-        self.b_dict , self.b = self.check_validity_belief(self.b_next_dict, self.b_next)
-        self.episode_reward += self.r
-        self.steps_taken += 1
-        if self.m:
-            self.measurements_taken += 1
-            self.episode_reward -= self.cost
-            
-    def check_validity_belief(self, b_dict:dict, b_array = None):
-        
-        # Check if belief includes done-states
-        scaling_factor = 1
-        if self.doneState in b_dict:
-            p_done = b_dict[self.doneState]
-            if p_done == 1:
-                #print("Warning: belief state contains only impossible states!")
-                pass
+            nextBelief = self.compute_next_belief   (currentBelief, currentAction)
+            if currentBelief == nextBelief:
+                currentMeasuring = True
             else:
-                b_dict.pop(self.doneState)
-                scaling_factor = 1 / (1-p_done) 
-        for s in b_dict:
-            b_dict[s] = b_dict[s] * scaling_factor
-        if b_array is not None:
-            b_array = b_array * scaling_factor
-            return b_dict, b_array
-        return b_dict
+                nextAction = self.determine_action      (nextBelief)
+                currentMeasuring  = self.determine_measurement (currentBelief, currentAction, nextBelief, nextAction) 
             
-    
-    def determine_action(self):
-        self.a = self.determine_action_general(self.b_dict, self.Q)
-    
-    def determine_action_general(self, b, Q):
-        thisQ = np.zeros(self.ActionSize)
-        # Determine 'Q-table' for current belief
-        for s in b:
-            p = b[s]
-            thisQ += Q[s]*p
-        # Choose optimal action according to thisQ, break ties randomly
-        thisQMax = np.max(thisQ)
-        return int(np.random.choice(np.where(np.isclose(thisQ, thisQMax))))
-    
-    def guess_next_state(self):
-        self.b_next, self.b_next_dict =  self.guess_next_state_general(self.b_dict, self.a, self.P)
+            reward, done = self.execute_action(currentAction, currentBelief, currentMeasuring)
+            if currentMeasuring:
+                nextBelief, cost = self.measure()
+                nextAction = self.determine_action (nextBelief)
+                total_measures += 1
+            else:
+                cost = 0
+            #print(currentBelief, currentAction, currentMeasuring, nextBelief)
+            total_reward += reward - cost
+            total_steps += 1
+            currentBelief, currentAction = nextBelief, nextAction
         
-    def guess_next_state_general(self, b, a, P):
-        """Returns the next state given b and a, both as a np-array and dictionary"""
-        b_next = np.zeros(self.StateSize)
-        for s in b:
-            b_next += P[s,a] * b[s]
-        filter = np.nonzero(b_next)
-        
-        
-        states, probs = np.arange(self.StateSize)[filter], b_next[filter]
-        b_next_discretized = np.random.choice(states, size=self.particles, p=probs)
-        states, counts = np.unique(b_next_discretized, return_counts = True)
-        
-        b_next_dict = {}
-        for i in range(len(states)):
-            s, p = states[i], counts[i] * 1/self.particles
-            b_next_dict[s] = p
-        return b_next, b_next_dict
+        return total_reward, total_steps, total_measures
     
-    def take_action(self):
-        if np.random.rand() < self.epsilon:
-            self.a = np.random.randint(self.ActionSize)
-            self.m = True
-        self.r, self.done = self.env.step(self.a)
     
-    def take_measurement(self):
-        if self.m:
-            s_next, cost = self.env.measure()
-            self.b_next_dict.clear()
-            self.b_next_dict[s_next] = 1
-            
-            self.b_next = np.zeros(self.StateSize)
-            self.b_next[s_next] = 1
-            
+    def determine_action(self, b):
+        return optimal_action(b, self.Q, None)
     
-    def determine_measurement(self):
-        self.a_next = self.determine_action_general(self.b_next_dict, self.Q)
-        MV = self.get_MV_general(self.b_next_dict, self.a_next, self.Q)
-        self.m = MV >= self.cost
-        
-    def get_MV_general(self, b, a, Q):
-        MV = 0
-        for s in b:
-            p = b[s]
-            qmax = np.max(Q[s])
-            MV += p* max(0.0, qmax - Q[s,a])
-        return MV
+    def compute_next_belief(self, b, a):
+        return next_belief(b,a,self.P)
+    
+    def determine_measurement(self, b, a, b_next=None, a_next=None):
+        if b_next is None:
+            b_next = self.compute_next_belief(b,a)
+        if a_next is None:
+            a_next = self.determine_action(b_next)
+        return measuring_value(b_next, a_next, self.Q) > self.cost
+    
+    def execute_action(self, action, belief, measuring):
+        reward, done = self.env.step(action)
+        return reward, done
+    
+    def measure(self):
+        s, cost = self.env.measure()
+        return {s:1}, cost
 
-class ACNO_Planner_SemiRobust(ACNO_Planner):
+class ACNO_Planner_Robust(ACNO_Planner):
     
-    def __init__(self, Env: AM_ENV, Env_planning: AM_ENV, Env_real: AM_ENV):
-        super().__init__(Env, Env_planning)
-        self.env_real = Env_real
+    def __init__(self, Env:AM_ENV, tables = RAM_Environment_tables, df=0.95):
+        self.env        = Env
+        self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
+        self.PReal, _R, self.QReal = tables.get_tables()
+        self.P, self.Q = tables.get_robust_MDP_tables()
         
-        self.P_real = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
-        self.Q_real = np.zeros( (self.StateSize, self.ActionSize) )
-        self.Q_real_max = np.zeros ( (self.StateSize) )
-        
-    def learn_model(self, eps=5000, logging=False):
-        super().learn_model(eps, logging)
-        
-        model_real = ModelLearner(self.env_real)
-        model_real.sample(eps)
-        self.P_real, _R, _Rb = model_real.get_model(True)
-        self.Q_real = model_real.get_Q(True)
-        self.Q_real_max = np.max(self.Q_real, axis = 1)
+        self.df         = df
+        self.epsilon    = 0
+    
+    def determine_action(self, b):
+        return optimal_action(b, self.Q, self.QReal)
 
-    def initialise_episode(self):
-        
-        # Regular planning vars
-        super().initialise_episode()
+class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
+
+    def determine_measurement(self, b, a, b_next, a_next):
+        b_next_real = next_belief(b,a,self.PReal)
+        return (measuring_value(b_next_real, a_next, self.QReal, self.Q) > self.cost
+                or  measuring_value(b_next, a_next, self.Q) > self.cost )
+
+
+# Generalized functions:
+
+def optimal_action(b:dict, Q1:np.ndarray, Q2:np.ndarray = None, loopPenalty = None):
+    """Returns the optimal action for belief state b as given by Q1.
+    Ties are broken according to Q2, then randomly."""
+    if loopPenalty == None:
+        loopPenalty = 1
     
-        # We use regular b's as the 'robust' b's, since we use those most often.
-        # We may also want to track the actual belief states, which we do with these:
-        self.b_real_dict, self.b_real_next_dict = {}, {}
-        self.b_real_dict[self.s_init], self.b_real_next_dict[self.s_init] = 1,1
-        
-    def update_step_vars(self):
-        super().update_step_vars()
-        self.b_real_dict = self.check_validity_belief(self.b_real_next_dict)
+    actionsize = np.shape(Q1)[1]
+    thisQ1 = np.zeros(actionsize)
     
-    def determine_action_general(self, b, Q):
-        thisQ, thisQ_real = np.zeros(self.ActionSize), np.zeros(self.ActionSize)
-        # Determine 'Q-table' for current belief
-        for s in b:
-            p = b[s]
-            thisQ += Q[s]*p
-            thisQ_real += self.Q_real[s]*p
-        # Choose optimal action according to thisQ
-        thisQMax = np.max(thisQ)
-        filter_robust = np.isclose(thisQ, thisQMax, rtol=0.01, atol= 0.001)
-        optimal_actions = np.arange(self.ActionSize)[filter_robust]
+    for (state, prob) in b.items():
         
-        # If tied, further filter on real expected value
-        if np.size(optimal_actions) > 1:
-            thisQ_real_max = np.max(thisQ_real[optimal_actions])
-            filter_real = np.isclose(thisQ_real[optimal_actions], thisQ_real_max, rtol=0.01, atol= 0.001)
-            filter_combined = np.logical_and(filter_real, filter_robust)
-            optimal_actions = np.arange(self.ActionSize)[filter_combined]
-        
-        # break ties randomly
-        return int(np.random.choice(optimal_actions))
-        
-        
-        
-    def guess_next_state(self):
-        _, self.b_real_next_dict        = self.guess_next_state_general(self.b_dict, self.a, self.P)
-        self.b_next, self.b_next_dict   = self.guess_next_state_general(self.b_dict, self.a, self.P_real)
-        
-    def take_measurement(self):
-        super().take_measurement()
-        if self.m:
-            self.b_real_next_dict = self.b_next_dict.copy()
+        thisQ1 += prob * Q1[state]
     
-    def determine_measurement(self):
-        self.a_next = self.determine_action_general(self.b_next_dict, self.Q)
-        MV = self.get_MV_general_semirobust(self.b_real_next_dict, self.a_next, self.Q, self.Q_real)
-        self.m = MV >= self.cost
+    thisQ1Max = np.max(thisQ1)
+    filter = np.isclose(thisQ1, thisQ1Max, rtol=0.01, atol= 0.001)
+    optimal_actions = np.arange(actionsize)[filter]
+
     
-    def get_MV_general_semirobust(self,  b_real:dict, a, Q_plan, Q_real):
-        MV = 0
-        for (s,p) in b_real.items():
-            a_max_icvar = np.argmax(Q_plan[s])
-            MV += Q_real[s, a_max_icvar] * p
-        for (s,p) in b_real.items():
-            MV -= p*Q_real[s,a]
-        return MV
+    if np.size(optimal_actions) > 1 and Q2 is not None:
+        
+        thisQ2 = np.zeros(actionsize)
+        for (state, prob) in b.items():
+            thisQ2 += prob * Q1[state]
+            
+        thisQ2Max = np.max(thisQ2[filter])
+        filter2 = np.isclose(thisQ2, thisQ2Max, rtol=0.001, atol= 0.0001)
+        filtersCombined = np.logical_and(filter, filter2)
+        optimal_actions = np.arange(actionsize)[filtersCombined]
+
     
-class ACNO_Planner_Correct(ACNO_Planner_SemiRobust):
+    return int(np.random.choice(optimal_actions))
+
+def next_belief(b:dict, a:int, P:np.ndarray, min_probability_considered:float = 0.001):
+    """computes next belief state, according to current belief b, action a and transition function P.
+    All belief probabilities smaller than min_probability_considered are ignored (for efficiency reasons)."""
     
-    def determine_measurement(self):
-        
-        # determine non-measuring values
-        action_values = np.zeros(self.ActionSize)
-        for a_next in range(self.ActionSize):
-            for s in self.b_dict:
-                dp_this_state = ModelLearner_Robust.custom_delta_minimize(
-                    self.P_real[s, a_next], self.Q_max ) #NOTE: alpha put in manually!
-                action_values[a_next] += np.sum(self.b_dict[s]*dp_this_state*self.Q_max)
-        
-        self.a_next = np.argmax(action_values)
-        value_not_measuring = action_values[self.a_next]
-        
-        # Determine measuring values:
-        value_measuring = 0
-        for s in self.b_next_dict:
-            value_measuring += self.Q_max[s]
-        
-        MV = value_measuring - value_not_measuring
-        self.m = MV >= self.cost
-        
-        
+    statesize = np.shape(P)[0]
+    b_next_array = np.zeros(statesize)
+    
+    for (state, prob) in b.items():
+        b_next_array += P[state,a] * prob
+    
+    filter = b_next_array >= min_probability_considered
+    states = np.arange(statesize)[filter]
+    b_next_array = b_next_array[filter]
+    b_next_array = b_next_array / np.sum(b_next_array)
+
+    
+    b_next = dict()
+    for (state, prob) in zip(states, b_next_array):
+        b_next[state] = prob
+    
+    return b_next
+
+def measuring_value(b:dict, a_b:int, Q:np.ndarray, Q_decision = None):
+    if Q_decision is None:
+        Q_decision = Q
+    MV = 0
+    for (state, prob) in b.items():
+        a_m = np.argmax(Q_decision[state])
+        MV += prob * max (0.0, Q[state, a_m] - Q[state,a_b])
+    return MV

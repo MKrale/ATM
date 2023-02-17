@@ -152,6 +152,7 @@ class FrozenLakeEnv(Env):
         self.desc = desc = np.asarray(desc, dtype="c")
         self.nrow, self.ncol = nrow, ncol = desc.shape
         self.reward_range = (0, 1)
+        self.is_slippery = is_slippery
 
         nA = 4
         nS = nrow * ncol

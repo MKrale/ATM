@@ -6,7 +6,7 @@ from AM_Gyms.AM_Env_wrapper import AM_ENV
 class ModelLearner():
     """Class for learning ACNO-MDP """
 
-    def __init__(self, env:AM_ENV, df = 0.95):
+    def __init__(self, env:AM_ENV, df = 0.90):
         # Set up AM-environment
         self.env = env
         
@@ -41,7 +41,7 @@ class ModelLearner():
         # Variables for learning:
         self.Q = 1/self.counter[:,:self.CActionSize] # The 'value' of checking a transition, i.e. the Q-value of this algorihtm
         self.lr = 0.3
-        self.df = 0.95
+        self.df = 0.99
     
     def get_model(self, transformed = False):
         """Returns T, R, R_biased (Note: actionspace is \tilde{A} = AxM!) """
@@ -95,7 +95,7 @@ class ModelLearner():
             self.sample_episode(eps, max_steps)
             if (eps+1) % (N/10) == 0 and logging:
                 print("{} exploration episodes completed!".format(eps+1))
-        self.update_Q_only()
+        self.update_Q_only(updates = np.min([self.StateSize*self.ActionSize, 100]))
         if modify:
             self.filter_T()
             self.add_costs()

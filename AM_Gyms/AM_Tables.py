@@ -31,14 +31,14 @@ class AM_Environment_tables():
     def learn_model(self, env:Env):
         print("to be implemented!")
         
-    def learn_model_AMEnv(self, env:AM_ENV, N = None):
+    def learn_model_AMEnv(self, env:AM_ENV, N = None, df = 0.8):
         
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         
         if N == None:
             N = self.StateSize * self.ActionSize * 50   # just guessing how many are required...
         
-        learner             = ModelLearner(env)
+        learner             = ModelLearner(env, df = df)
         learner.sample(N)
         self.P, self.R, _   = learner.get_model(transformed=True)
         self.Q              = learner.get_Q(transformed=True)
@@ -47,8 +47,8 @@ class AM_Environment_tables():
     def env_to_dict(self):
         return {
                     "P":            self.P,
-                    "R":            self.Q,
-                    "Q":            self.R,
+                    "R":            self.R,
+                    "Q":            self.Q,
                     "StateSize":    self.StateSize,
                     "ActionSize":   self.ActionSize,
                     "MeasureCost":  self.MeasureCost,
@@ -59,6 +59,7 @@ class AM_Environment_tables():
         self.P, self.R, self.Q = np.array(dict["P"]), np.array(dict["R"]), np.array(dict["Q"])
         self.StateSize, self.ActionSize = dict["StateSize"], dict["ActionSize"]
         self.MeasureCost, self.s_init = dict["MeasureCost"], dict["s_init"]
+        print(self.Q)
         
     def export_model(self, fileName, folder = None):
         
@@ -99,19 +100,20 @@ class RAM_Environment_tables(AM_Environment_tables):
     PrMdp:np.ndarray
     QrMdp:np.ndarray
     
-    def learn_model_AMEnv_alpha(self, env: Env, alpha:float, N=None, N_robust=None):
+    def learn_model_RAMEnv_alpha(self, env: Env, alpha:float, N=None, N_robust=None, df = 0.8):
         
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         
+        # NOTE: these numbers are just guesses, I should investigate this further/maybe do some check?
         if N_robust is None:
             N_robust = self.StateSize*self.ActionSize * 50
         if N is None:
-            N = self.StateSize * self.ActionSize * 500
-            
-        robustLearner = ModelLearner_Robust(env, alpha)
+            N = self.StateSize * self.ActionSize * 1000
+        
+        robustLearner = ModelLearner_Robust(env, alpha, df = df)
         robustLearner.run(updates=N_robust, eps_modelLearner=N)
         
-        self.P, self.R, self.Q, self.QrMdp, self.PrMdp = robustLearner.get_model()
+        self.P, self.R, self.Q, self.PrMdp, self.QrMdp = robustLearner.get_model()
         self.Pmin, self.Pmax = np.maximum(self.P-alpha, 0), np.minimum(self.P+alpha, 1)
 
         
@@ -131,6 +133,9 @@ class RAM_Environment_tables(AM_Environment_tables):
         self.Pmin, self.Pmax    = np.array(dict["Pmin"]) , np.array(dict["Pmax"])
         self.PrMdp, self.QrMdp  = np.array(dict["PrMdp"]), np.array(dict["QrMdp"])
 
+    def get_robust_MDP_tables(self):
+        "returns P & Q for robust MDP"
+        return self.PrMdp, self.QrMdp
 
 
 # Code for learning models:

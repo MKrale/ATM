@@ -28,11 +28,12 @@ import os
 # Agents
 import Baselines.AMRL_Agent as amrl
 from BAM_QMDP import BAM_QMDP
-from ACNO_Planning import ACNO_Planner, ACNO_Planner_SemiRobust, ACNO_Planner_Correct
+# from ACNO_Planning_old import ACNO_Planner, ACNO_Planner_SemiRobust, ACNO_Planner_Correct
+
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
 from Baselines.ACNO_generalised.Observe_while_plan_agent import ACNO_Agent_OWP
 from Baselines.DynaQ import QBasic, QOptimistic, QDyna
-from Acno_Planning_Batch import ACNO_Planner_Batch
+from Acno_Planning import ACNO_Planner, ACNO_Planner_Robust, ACNO_Planner_Control_Robust
 
 # Environments
 from AM_Gyms.NchainEnv import NChainEnv
@@ -42,7 +43,7 @@ from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
 from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
-from AM_Gyms.AM_Tables import AM_Environment_tables
+from AM_Gyms.AM_Tables import AM_Environment_tables, RAM_Environment_tables
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -69,7 +70,7 @@ parser = argparse.ArgumentParser(description="Run tests on Active Measuring Algo
 parser.add_argument('-algo'             , default = 'AMRL',             help='Algorithm to be tested.')
 parser.add_argument('-env'              , default = 'Lake',             help='Environment on which to perform the testing')
 parser.add_argument('-env_var'          , default = 'None',             help='Variant of the environment to use (if applicable)')
-parser.add_argument('-env_gen'          , default = 'None',             help='Size of the environment to use (if applicable)')
+parser.add_argument('-env_gen'          , default = None,               help='Size of the environment to use (if applicable)')
 parser.add_argument('-env_size'         , default = 0,                  help='Size of the environment to use (if applicable)')
 parser.add_argument('-m_cost'           , default = -1.0,               help='Cost of measuring (default: use as specified by environment)')
 parser.add_argument('-nmbr_eps'         , default = 500,                help='nmbr of episodes per run')
@@ -79,6 +80,7 @@ parser.add_argument('-rep'              , default = './Data/',          help='Re
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 parser.add_argument('-robust'           , default = 'n',                help='Option to use robust version of environment (either (n)o (default), (y)es, (p)lan only or (r)eal only. Currently only available for planner algorithms. ')
 parser.add_argument('-alpha'            , default = 0.8,                help='Risk-sensitivity factor, only used by robust alg.')
+parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:
 args            = parser.parse_args()
@@ -86,12 +88,15 @@ algo_name       = args.algo
 env_name        = args.env
 env_variant     = args.env_var
 env_size        = int(args.env_size)
-env_gen         = args.env_gen
+env_gen         = str(args.env_gen)
 MeasureCost     = float(args.m_cost)
 nmbr_eps        = int(args.nmbr_eps)
 nmbr_runs       = int(args.nmbr_runs)
 file_name       = args.f
 rep_name        = args.rep
+remake_env_opt  = True
+if args.env_remake in  ["False", "false"]:
+        remake_env_opt = False
 
 use_robust      = args.robust
 alpha           = float(args.alpha)
@@ -156,10 +161,6 @@ def get_env(seed = None):
                                 case other:
                                         StateSize = env_size**2
                         match env_gen:
-                                case None:
-                                        print("Using random map")
-                                        map_name = None
-                                        desc = generate_random_map(size=env_size)
                                 case "random":
                                         map_name = None
                                         desc = generate_random_map(size=env_size)
@@ -169,7 +170,12 @@ def get_env(seed = None):
                                         else:
                                                 map_name = "{}x{}".format(env_size, env_size)
                                                 desc = None
-                        if map_name == None:
+                                case _:
+                                        print("Using random map")
+                                        map_name = None
+                                        desc = generate_random_map(size=env_size)
+                                        
+                        if map_name is None and remake_env_opt:
                                 remake_env = True
                         match env_variant:
                                 case "det":
@@ -242,6 +248,7 @@ def get_env(seed = None):
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
         
+        # NOTE: does not work, should be redone!
         if use_robust in ['y', 'p', 'r']:
                 print("Building robust environment:")
                 learner_robust = ModelLearner_Robust(ENV, alpha)
@@ -267,6 +274,15 @@ def get_env(seed = None):
         ###     Defining Agents        ###
 ######################################################
 
+def get_table(ENV, env_folder_name):
+        table = RAM_Environment_tables()
+        try:
+                table.import_model(fileName = ENV.getname(), folder = env_folder_name)
+        except FileNotFoundError:
+                table.learn_model_RAMEnv_alpha(ENV, alpha, df=0.90)
+                table.export_model( ENV.getname(), env_folder_name )
+        return table
+
 # Both final names and previous/working names are implemented here
 def get_agent(seed=None):
         
@@ -288,19 +304,14 @@ def get_agent(seed=None):
                         
                
                 case "ATM":
-                        agent = ACNO_Planner(ENV, ENV_planning)
-                case "ATM_Semi_Robust":
-                        agent = ACNO_Planner_SemiRobust(ENV, ENV_planning, ENV_nonrobust)
-                case "ATM_Correct":
-                        agent = ACNO_Planner_Correct(ENV, ENV_planning, ENV_nonrobust)
-                case "ATM_Batch":
-                        table = AM_Environment_tables()
-                        try:
-                                table.import_model(fileName = ENV.getname(), folder = env_folder_name)
-                        except FileNotFoundError:
-                                table.learn_model_AMEnv(ENV)
-                                table.export_model( ENV.getname(), env_folder_name )
-                        agent = ACNO_Planner_Batch(ENV, table)
+                        table = get_table(ENV, env_folder_name)
+                        agent = ACNO_Planner(ENV, table)
+                case "ATM_Robust":
+                        table = get_table(ENV, env_folder_name)
+                        agent = ACNO_Planner_Robust(ENV, table)
+                case "ATM_Control_Robust":
+                        table = get_table(ENV, env_folder_name)
+                        agent = ACNO_Planner_Control_Robust(ENV, table)
                 # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
@@ -374,6 +385,6 @@ for i in range(nmbr_runs):
         if doSave:
                 export_data(rewards[:i+1],steps[:i+1],measures[:i+1],t_start)
         print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i, t_this_end-t_this_start, r_tot/nmbr_eps, np.average(steps[i]),np.average(measures[i])))
-        if remake_env:
+        if remake_env and i<nmbr_runs-1:
                 agent = get_agent(i+1)
 print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))

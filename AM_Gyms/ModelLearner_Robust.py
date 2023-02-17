@@ -36,7 +36,7 @@ class ModelLearner_Robust():
         """Uses the ModelLearner-class to get P, R & Q"""
         
         # Run modelLearner:
-        modelLearner = ModelLearner(self.env)
+        modelLearner = ModelLearner(self.env, df = self.df)
         modelLearner.sample(eps, logging=logging)
         
         # Unpack values 
@@ -135,7 +135,7 @@ class ModelLearner_Robust():
         """simulate what state we end up in next, according to REAL transition function"""
         return np.random.choice(self.StateSize, p=self.P[s,a])
     
-    def run(self, updates = 1_000, eps_modelLearner = 10_000, logging = False):
+    def run(self, updates = 1_000, eps_modelLearner = 10_000, logging = True):
         """Calculates model dynamics using eps_modelearning episodes, then ICVaR using
         updates updates per state."""
         
