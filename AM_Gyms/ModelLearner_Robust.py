@@ -41,15 +41,22 @@ class ModelLearner_Robust():
         
         # Unpack values 
         P_total, R_total, _R_biased = modelLearner.get_model()
-        self.P, self.R = P_total[:,self.ActionSize:,:],  R_total[:,self.ActionSize:] # removing non-measuring actions
+        _P, self.R = P_total[:,self.ActionSize:,:],  R_total[:,self.ActionSize:] # removing non-measuring actions
+        P = modelLearner.get_T_dictionary()
+        self.P = P
         self.Q = modelLearner.get_Q() [:,:self.ActionSize]
         self.Q_max = np.max(self.Q, axis=1)
         
         self.ICVaR, self.ICVaR_max = np.copy(self.Q), np.copy(self.Q_max)
-        self.DeltaP = np.copy(self.P)
+        self.DeltaP = {}
+        for s in range(self.StateSize):
+            self.DeltaP[s] = {}
+            for a in range(self.ActionSize):
+                self.DeltaP[s][a] = dict(P[s][a])
+        
     
     def update_Q(self, s, a):
-        """Updates Q-table according to (known) model dynamics ()"""
+        """Updates Q-table according to (known) model dynamics (currently unused)"""
         self.Q[s,a] = self.df * np.sum( self.P[s,a] * self.Q_max ) + self.R[s,a]
         self.Q_max[s] = np.max(self.Q[s])
     
@@ -57,18 +64,23 @@ class ModelLearner_Robust():
         """Updates ICVaR according to (known) model dynamics"""
         
         # 1) Make a dictionary of all non-zero elements in P (Efficiency!)
-        filter = np.nonzero(self.P[s,a])
-
-        states, probs = np.arange(self.StateSize)[filter], self.P[s,a][filter]
-        icvar_max, r = self.ICVaR_max[filter], self.R[s,a]
+        states, probs, icvar_max = [], [], []
+        for (state, prob) in self.P[s][a].items():
+            states.append(state)
+            probs.append(prob)
+            icvar_max.append(self.ICVaR_max[state])
+        states, probs, icvar_max = np.array(states.copy()), np.array(probs.copy()), np.array(icvar_max)
+        r = self.R[s,a]
+        
         
         # 2) Get ICVaR values according to custom procedure
         delta_p_new = ModelLearner_Robust.custom_delta_minimize(probs, icvar_max, self.alpha)
         
         # 3) Update deltaP's and ICVaR
+        self.ICVaR[s,a] = r
         for (i,snext) in enumerate(states):
-            self.DeltaP[s,a,snext] = delta_p_new[i]
-        self.ICVaR[s,a] = self.df * np.sum(delta_p_new * icvar_max) + r
+            self.DeltaP[s][a][snext] = delta_p_new[i]
+            self.ICVaR[s][a] += self.df * delta_p_new[i] *icvar_max[i]
         self.ICVaR_max[s] = np.max(self.ICVaR[s])
     
     @staticmethod    
@@ -131,10 +143,6 @@ class ModelLearner_Robust():
             return np.random.randint(self.ActionSize)
         return np.argmax(self.ICVaR[s])
     
-    def decide_next_s(self,s,a):
-        """simulate what state we end up in next, according to REAL transition function"""
-        return np.random.choice(self.StateSize, p=self.P[s,a])
-    
     def run(self, updates = 1_000, eps_modelLearner = 10_000, logging = True):
         """Calculates model dynamics using eps_modelearning episodes, then ICVaR using
         updates updates per state."""
@@ -156,29 +164,27 @@ class ModelLearner_Robust():
                 
             if (i%(updates/10) == 0 and logging):
                 print("Episode {} completed!".format(i+1))
-        
-        self.calculate_model_dicts()
 
     def get_model(self):
         """Return all model tables (P, R, Q, DeltaP, ICVaR)"""
-        return (self.P_dict, self.R, self.Q, self.DeltaP_dict, self.ICVaR)
+        return (self.P, self.R, self.Q, self.DeltaP, self.ICVaR)
 
     def get_model_dictionaries(self):
         """returns both P and DeltaP as dictionaries"""
-        return (self.P_dict, self.DeltaP_dict)
+        return (self.P, self.DeltaP)
     
     
-    def calculate_model_dicts(self):
+    # def calculate_model_dicts(self):
         
-        self.P_dict, self.DeltaP_dict = {}, {}
-        for s in range(self.StateSize):
-            self.P_dict[s] = {}; self.DeltaP_dict[s] = {}
-            for a in range(self.ActionSize):
-                self.P_dict[s][a] = {}; self.DeltaP_dict[s][a] = {}
-                for (snext,p) in enumerate(self.P[s,a]):
-                    if p != 0:
-                        self.P_dict[s][a][snext] = p
-                        self.DeltaP_dict[s][a][snext] = self.DeltaP[s,a,snext]
+    #     self.P_dict, self.DeltaP_dict = {}, {}
+    #     for s in range(self.StateSize):
+    #         self.P_dict[s] = {}; self.DeltaP_dict[s] = {}
+    #         for a in range(self.ActionSize):
+    #             self.P_dict[s][a] = {}; self.DeltaP_dict[s][a] = {}
+    #             for (snext,p) in enumerate(self.P[s,a]):
+    #                 if p != 0:
+    #                     self.P_dict[s][a][snext] = p
+    #                     self.DeltaP_dict[s][a][snext] = self.DeltaP[s,a,snext]
                         
 
 # Code for testing:

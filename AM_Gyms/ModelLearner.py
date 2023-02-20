@@ -2,6 +2,17 @@ import numpy as np
 
 from AM_Gyms.AM_Env_wrapper import AM_ENV
 
+def build_dictionary(statesize, actionsize, array:np.ndarray = None):
+    dict = {}
+    for s in range(statesize):
+        dict[s] = {}
+        for a in range(actionsize):
+            dict[s][a] = {}
+            if array is not None:
+                for snext in range(statesize):
+                    dict[s][a][snext] = array[s,a,snext]
+
+
 
 class ModelLearner():
     """Class for learning ACNO-MDP """
@@ -23,7 +34,7 @@ class ModelLearner():
         self.init_model()
 
     def init_model(self):
-        # Model tables:
+        # Model dictionaries:
         self.counter = np.zeros((self.StateSize, self.ActionSize)) + 1
         self.T_counter = np.zeros((self.StateSize, self.ActionSize, self.StateSize)) + 1/self.StateSize
         self.T_counter[self.doneState,:,:] = 0
@@ -61,9 +72,9 @@ class ModelLearner():
             self.T_dict[s] = {}
             for a in range(self.CActionSize):
                 self.T_dict[s][a] = {}
-                for (s,p) in enumerate(self.T[s,a]):
+                for (snext,p) in enumerate(self.T[s,a]):
                     if p != 0:
-                        self.T_dict[s][a][s] = p
+                        self.T_dict[s][a][snext] = p
         
 
         
@@ -83,7 +94,6 @@ class ModelLearner():
             for action in range(self.ActionSize):
                 self.T_counter[state, action, self.doneState] = 0
                 self.T[state,action] = self.T_counter[state,action] / np.sum(self.T_counter[state,action])
-        print (self.T)
     
     def filter_T(self):
         """Filters all transitions with p<1/|S| from T"""
@@ -118,6 +128,7 @@ class ModelLearner():
         if modify:
             self.filter_T()
             self.add_costs()
+        self.create_dictionaries()
         return self.sampling_rewards, self.sampling_steps
     
     def sample_episode(self, episode, max_steps):
@@ -160,15 +171,17 @@ class ModelLearner():
         self.T_counter[s_prev,ac,s_next] += 1
         self.R_counter[s_prev,ac] += reward
         
+        self.T[s_prev,ac,s_next] = self.T_counter[s_prev,ac,s_next] / self.counter[s_prev,ac]
+        self.R[s_prev,ac] = self.R_counter[s_prev,ac] / np.maximum(self.counter[s_prev,ac]-1,1)
+        
         # update non-measuring actions counters
         anm = ac + self.CActionSize
         self.counter[s_prev,anm] += 1
         self.T_counter[s_prev,anm,s_next] += 1
         self.R_counter[s_prev,anm] += reward
         
-        # update model
-        self.T[s_prev] = self.T_counter[s_prev] / self.counter[s_prev,:,np.newaxis]
-        self.R[s_prev] = self.R_counter[s_prev] / np.maximum(self.counter[s_prev]-1,1)
+        self.T[s_prev,anm,s_next] = self.T_counter[s_prev,anm,s_next] / self.counter[s_prev,ac]
+        self.R[s_prev,anm] = self.R_counter[s_prev,anm] / np.maximum(self.counter[s_prev,anm]-1,1)
         
         # update Q-values
         self.Q_real[s_prev, ac] = self.df_real * np.sum(self.T[s_prev,ac]*self.Q_real_max) + self.R[s_prev,ac] 

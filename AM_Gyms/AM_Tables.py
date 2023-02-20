@@ -116,7 +116,7 @@ class RAM_Environment_tables(AM_Environment_tables):
         
         # NOTE: these numbers are just guesses, I should investigate this further/maybe do some check?
         if N_robust is None:
-            N_robust = np.max([self.StateSize*self.ActionSize, 500])
+            N_robust = self.StateSize * self.ActionSize * 100
         if N is None:
             N = self.StateSize * self.ActionSize * 1000
         
