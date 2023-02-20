@@ -1,7 +1,7 @@
 import numpy as np
 import math as m
 
-from AM_Gyms.ModelLearner import ModelLearner
+from AM_Gyms.ModelLearner_V2 import ModelLearner
 from AM_Gyms.AM_Env_wrapper import AM_ENV
 
 
@@ -37,14 +37,10 @@ class ModelLearner_Robust():
         
         # Run modelLearner:
         modelLearner = ModelLearner(self.env, df = self.df)
-        modelLearner.sample(eps, logging=logging)
+        modelLearner.run_visits()
         
         # Unpack values 
-        P_total, R_total, _R_biased = modelLearner.get_model()
-        _P, self.R = P_total[:,self.ActionSize:,:],  R_total[:,self.ActionSize:] # removing non-measuring actions
-        P = modelLearner.get_T_dictionary()
-        self.P = P
-        self.Q = modelLearner.get_Q() [:,:self.ActionSize]
+        self.P, self.R, self.Q = modelLearner.get_model()
         self.Q_max = np.max(self.Q, axis=1)
         
         self.ICVaR, self.ICVaR_max = np.copy(self.Q), np.copy(self.Q_max)
@@ -52,7 +48,7 @@ class ModelLearner_Robust():
         for s in range(self.StateSize):
             self.DeltaP[s] = {}
             for a in range(self.ActionSize):
-                self.DeltaP[s][a] = dict(P[s][a])
+                self.DeltaP[s][a] = dict(self.P[s][a])
         
     
     def update_Q(self, s, a):
@@ -162,7 +158,7 @@ class ModelLearner_Robust():
                 a = self.pick_action(s)
                 self.update_ICVaR(s, a)
                 
-            if (i%(updates/10) == 0 and logging):
+            if (i%(np.min([updates/10, 1000])) == 0 and logging):
                 print("Episode {} completed!".format(i+1))
 
     def get_model(self):

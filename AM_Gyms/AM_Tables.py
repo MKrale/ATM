@@ -1,7 +1,7 @@
 import numpy as np
 from gym import Env, spaces, utils
 from AM_Gyms.AM_Env_wrapper import AM_ENV
-from AM_Gyms.ModelLearner import ModelLearner
+from AM_Gyms.ModelLearner_V2 import ModelLearner
 from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
 # from AM_Env_wrapper import AM_ENV
 # from ModelLearner import ModelLearner
@@ -50,9 +50,8 @@ class AM_Environment_tables():
             N = self.StateSize * self.ActionSize * 50   # just guessing how many are required...
         
         learner             = ModelLearner(env, df = df)
-        learner.sample(N)
-        self.P, self.R, _   = learner.get_model(transformed=True)
-        self.Q              = learner.get_Q(transformed=True)
+        learner.run_visits()
+        self.P, self.R, self.Q = learner.get_model()
         self.isLearned      = True
         
     def env_to_dict(self):
@@ -116,7 +115,7 @@ class RAM_Environment_tables(AM_Environment_tables):
         
         # NOTE: these numbers are just guesses, I should investigate this further/maybe do some check?
         if N_robust is None:
-            N_robust = self.StateSize * self.ActionSize * 100
+            N_robust = self.StateSize * self.ActionSize * 10
         if N is None:
             N = self.StateSize * self.ActionSize * 1000
         
