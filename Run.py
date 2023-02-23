@@ -49,6 +49,7 @@ from AM_Gyms.AM_Tables import AM_Environment_tables, RAM_Environment_tables
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
 from AM_Gyms.AM_Env_wrapper import AM_Visualiser as visualiser
 from Baselines.ACNO_generalised.ACNO_ENV import ACNO_ENV
+from Uncertain_AM_ENV import Uncertain_AM_ENV
 
 from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
 from AM_Gyms.generic_gym import GenericGym
@@ -78,28 +79,28 @@ parser.add_argument('-nmbr_runs'        , default = 1,                  help='nm
 parser.add_argument('-f'                , default = None,               help='File name (default: generated automatically)')
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
-parser.add_argument('-robust'           , default = 'n',                help='Option to use robust version of environment (either (n)o (default), (y)es, (p)lan only or (r)eal only. Currently only available for planner algorithms. ')
+parser.add_argument('-utype'            , default = None,               help='type of uncertainty used (default:)')
 parser.add_argument('-alpha'            , default = 0.5,                help='Risk-sensitivity factor, only used by robust alg.')
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:
-args            = parser.parse_args()
-algo_name       = args.algo
-env_name        = args.env
-env_variant     = args.env_var
-env_size        = int(args.env_size)
-env_gen         = str(args.env_gen)
-MeasureCost     = float(args.m_cost)
-nmbr_eps        = int(args.nmbr_eps)
-nmbr_runs       = int(args.nmbr_runs)
-file_name       = args.f
-rep_name        = args.rep
-remake_env_opt  = True
+args             = parser.parse_args()
+algo_name        = args.algo
+env_name         = args.env
+env_variant      = args.env_var
+env_size         = int(args.env_size)
+env_gen          = str(args.env_gen)
+MeasureCost      = float(args.m_cost)
+nmbr_eps         = int(args.nmbr_eps)
+nmbr_runs        = int(args.nmbr_runs)
+file_name        = args.f
+rep_name         = args.rep
+remake_env_opt   = True
 if args.env_remake in  ["False", "false"]:
         remake_env_opt = False
 
-use_robust      = args.robust
-alpha           = float(args.alpha)
+uncertainty_type = args.utype
+alpha            = float(args.alpha)
 
 if args.save == "False" or args.save == "false":
         doSave = False
@@ -124,6 +125,7 @@ MeasureCost_Lake_default        = 0.05
 MeasureCost_Taxi_default        = 0.01 / 20
 MeasureCost_Chain_default       = 0.05
 remake_env                      = False
+env_folder_name = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
 
 def get_env(seed = None):
         "Returns AM_Env as specified in global (user-specified) vars"
@@ -158,7 +160,7 @@ def get_env(seed = None):
                                         print("Using standard size map (4x4)")
                                         env_size = 4
                                         StateSize = 4**2
-                                case other:
+                                case _:
                                         StateSize = env_size**2
                         match env_gen:
                                 case "random":
@@ -248,27 +250,11 @@ def get_env(seed = None):
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
         
-        # NOTE: does not work, should be redone!
-        if use_robust in ['y', 'p', 'r']:
-                print("Building robust environment:")
-                learner_robust = ModelLearner_Robust(ENV, alpha)
-                learner_robust.run(updates=1000, eps_modelLearner=10_000, logging=True)
-                P,R,Q,DeltaP,ICVaR = learner_robust.get_model()
-                env_robust = GenericGym(DeltaP, R, s_init, has_terminal_state, terminal_prob )
-                ENV_robust = wrapper(env_robust, StateSize, ActionSize, MeasureCost, s_init)
+        if uncertainty_type is not None:
+                table = get_table(ENV, env_folder_name=env_folder_name)
+                ENV = Uncertain_AM_ENV(ENV, table)
         
-        match use_robust:
-                case 'y':       return ENV_robust, ENV_robust, ENV
-                case 'n':       return ENV, ENV, ENV
-                case 'p':       print ("Warning: currently only works for planning algorithms!"); return ENV, ENV_robust, ENV   
-                case 'r':       print ("Warning: currently only works for planning algorithms!"); return ENV_robust, ENV, ENV
-                case _  :       print ("Warning: robustness setting not recognised!")
-        """" 
-        Possible extentions: 
-                * Bigger settings
-                * Eventually: partial measurement envs
-        """
-
+        return ENV
 
 ######################################################
         ###     Defining Agents        ###
@@ -286,8 +272,7 @@ def get_table(ENV, env_folder_name):
 # Both final names and previous/working names are implemented here
 def get_agent(seed=None):
         
-        env_folder_name = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
-        (ENV, ENV_planning, ENV_nonrobust) = get_env(seed)
+        ENV = get_env(seed)
         match algo_name:
                 # AMRL-Q, as specified in original paper
                 case "AMRL":
@@ -368,6 +353,7 @@ def export_data(rewards, steps, measures,  t_start):
 
 rewards, steps, measures = np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps))
 t_start = 0 + t.perf_counter()
+rewards_avg, steps_avg, measures_avg = np.zeros(nmbr_runs), np.zeros(nmbr_runs), np.zeros(nmbr_runs)
 print("""
 Start running agent with following settings:
 Algorithm: {}
@@ -381,10 +367,11 @@ agent = get_agent(0)
 for i in range(nmbr_runs):
         t_this_start = t.perf_counter()
         (r_tot, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, True) 
+        rewards_avg[i], steps_avg[i], measures_avg[i] =np.average(rewards[i]), np.average(steps[i]),np.average(measures[i])
         t_this_end = t.perf_counter()
         if doSave:
                 export_data(rewards[:i+1],steps[:i+1],measures[:i+1],t_start)
-        print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i, t_this_end-t_this_start, r_tot/nmbr_eps, np.average(steps[i]),np.average(measures[i])))
+        print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i+1, t_this_end-t_this_start, rewards_avg[i], steps_avg[i], measures_avg[i]))
         if remake_env and i<nmbr_runs-1:
                 agent = get_agent(i+1)
-print("Agent Done! ({0} runs, total of {1} s)\n\n".format(nmbr_runs, t.perf_counter()-t_start))
+print("Agent Done! ({0} runs in {1} s, with average reward {2}, steps {3}, measures {4})\n\n".format(nmbr_runs, t.perf_counter()-t_start, np.average(rewards_avg), np.average(steps_avg),np.average(measures_avg)))
