@@ -16,7 +16,7 @@ class ACNO_Planner():
         self.P, _R, self.Q = tables.get_tables()
 
         self.df          = df
-        self.epsilon     = 0
+        self.epsilon_measuring = 0.01
         self.loopPenalty = 0.95
     
     def run(self, eps, logging=False):
@@ -32,6 +32,7 @@ class ACNO_Planner():
         for i in range(eps):
             reward, step, measurement = self.run_episode()
             rewards[i], steps[i], measurements[i] = reward, step, measurement
+            #print(i)
             if (i > 0 and i%log_nmbr == 0 and logging):
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, eps, np.average(rewards[(i-log_nmbr):i]), np.average(steps[(i-log_nmbr):i]), np.average(measurements[(i-log_nmbr):i]) ) )
@@ -58,7 +59,7 @@ class ACNO_Planner():
                 currentMeasuring  = self.determine_measurement (currentBelief, currentAction, nextBelief, nextAction) 
             
             reward, done = self.execute_action(currentAction, currentBelief, currentMeasuring)
-            if currentMeasuring:
+            if currentMeasuring or np.random.random() < self.epsilon_measuring:
                 nextBelief, cost = self.measure()
                 nextAction = self.determine_action (nextBelief)
                 total_measures += 1
@@ -102,7 +103,7 @@ class ACNO_Planner_Robust(ACNO_Planner):
         self.P, self.Q, self.Pmin, self.Pmax = tables.get_robust_MDP_tables()
         
         self.df         = df
-        self.epsilon    = 0
+        self.epsilon_measuring    = 0.01
     
 
     
@@ -112,16 +113,6 @@ class ACNO_Planner_Robust(ACNO_Planner):
     def compute_next_belief(self, b, a):
         
         b_real = custom_worst_belief(b, a, self.P, self.Pmin, self.Pmax, self.Q)
-        
-        # b_mdp =  next_belief(b,a,self.P)
-        # state, difference = 0,0
-        # for s in b_mdp:
-        #     thisdifference = np.abs(b_mdp[s] - b_real[s])
-        #     if thisdifference > difference:
-        #         difference = thisdifference
-        #         state = s
-        # if difference > 0.01:
-        #     print(state, difference)
         
         return b_real
         
@@ -263,13 +254,17 @@ def get_partial_P(state_indexes:np.ndarray, P:dict, a:int, flat = False):
                     P_array[s_i,snext_i] = P[s][a][snext]
     return P_array
 
-def b_array_to_dict(b_array:np.ndarray, indexes:np.ndarray):
+def b_array_to_dict(b_array:np.ndarray, indexes:np.ndarray, min_probability_considered:float = 0.001):
+    b_array[b_array < min_probability_considered] = 0
+    b_array = b_array / np.sum(b_array)
+    
     b_dict = {}
     for (index, prob) in enumerate(b_array):
-        b_dict[indexes[index]] = prob
+        if prob > 0:
+            b_dict[indexes[index]] = prob
     return b_dict
             
-def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarray):
+def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarray, min_probability_considered:float = 0.01):
 
     """We rewrite our worst-case probability function as the solution of a linear program of the following form:
     
@@ -279,12 +274,13 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
     """
     
     # Unpack P & Q into arrays of required sizes
-    relevant_states = []
+    relevant_current_states, relevant_next_states = [], []
     for s in b.keys():
-        relevant_states.append(s)
+        relevant_current_states.append(s)
         for snext in Pmax[s][a].keys():
-            relevant_states.append(snext)
-    state_indexes = np.unique(relevant_states)
+            relevant_next_states.append(snext)
+    relevant_next_states = np.unique(relevant_next_states)
+    state_indexes = np.unique(np.append(relevant_current_states, relevant_next_states))
     statesize, actionsize = np.size(state_indexes), np.shape(Q)[1]
     
     Pmin_small = get_partial_P(state_indexes, Pmin, a, flat=False)
@@ -307,7 +303,13 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
             constraints.append(P[index] <= Pmax_small[index])
     
     problem = cp.Problem(objective, constraints)
-    problem.solve()
+    #problem.solve(solver=cp.GLPK)
+    problem.solve(solver=cp.GLOP)
+    if bnext.value is None:
+        print("Error: solver failed!: {}".format(problem.status))
+        return next_belief(b,a,Pguess)
+    
+
     b_worst_dict = b_array_to_dict(bnext.value, state_indexes)
     return b_worst_dict
     
