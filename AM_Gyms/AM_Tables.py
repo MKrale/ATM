@@ -45,6 +45,7 @@ class AM_Environment_tables():
     def learn_model_AMEnv(self, env:AM_ENV, N = None, df = 0.8):
         
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
+        self.StateSize += 1
         
         if N == None:
             N = self.StateSize * self.ActionSize * 50   # just guessing how many are required...
@@ -112,6 +113,7 @@ class RAM_Environment_tables(AM_Environment_tables):
     def learn_model_RAMEnv_alpha(self, env: Env, alpha:float, N=None, N_robust=None, df = 0.8):
         
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
+        self.StateSize += 1
         
         # NOTE: these numbers are just guesses, I should investigate this further/maybe do some check?
         if N_robust is None:
@@ -150,8 +152,8 @@ class RAM_Environment_tables(AM_Environment_tables):
         self.PrMdp, self.QrMdp  = dict["PrMdp"], np.array(dict["QrMdp"])
         
     def get_robust_MDP_tables(self):
-        "returns P & Q for robust MDP"
-        return self.PrMdp, self.QrMdp
+        "returns P, Q, Pmin & Pmax for robust MDP"
+        return self.PrMdp, self.QrMdp, self.Pmin, self.Pmax
 
 class IntKeyDict(dict):
     def __setitem__(self, key, value):
