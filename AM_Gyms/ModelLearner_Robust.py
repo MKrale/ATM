@@ -1,86 +1,75 @@
 import numpy as np
 import math as m
+#from AM_Gyms.AM_Tables import RAM_Environment_Explicit
 
-from AM_Gyms.ModelLearner_V2 import ModelLearner
-from AM_Gyms.AM_Env_wrapper import AM_ENV
-
-
+def deep_copy(dict, S ,A):
+    copy = {}
+    for s in range(S):
+        copy[s] = {}
+        for a in range(A):
+            copy[s][a] = dict[s][a]
+    return copy
+        
 
 class ModelLearner_Robust():
-    """Class to determine the ICVaR of a MDP, as represented by an AM-env."""
+    """Class to find the worst-case transition function and Q-values for a uMDP."""
     
-    def __init__(self, Env:AM_ENV, alpha:float, df = 0.95):
+    def __init__(self, model, df = 0.99):
         
         # Unpacking variables from environment:
-        self.env        = Env
-        self.StateSize, self.ActionSize, self.cost, self.s_init = self.env.get_vars()
-        self.StateSize  += 1 #include done state
+        self.model        = model # NOTE: must be of class RAM_Environment_Explicit!
+        self.StateSize, self.ActionSize, self.cost, self.s_init = self.model.get_vars()
         self.doneState  = self.StateSize -1
         
-        # Setting up tables:
-        self.P          = np.zeros( (self.StateSize, self.ActionSize, self.StateSize) )
-        self.R          = np.zeros( (self.StateSize, self.ActionSize) )
-        self.Q          = np.zeros( (self.StateSize, self.ActionSize) )
-        self.Q_max      = np.zeros( self.StateSize)
+        self.Pavg, self.R, self.Qavg = self.model.get_avg_tables()
+        self.Pmin, self.Pmax, _R = self.model.get_robust_tables()
         
-        self.ICVaR      = np.zeros( (self.StateSize, self.ActionSize) )
-        self.ICVaR_max  = np.zeros(self.StateSize)
-        
+        self.Qavg_max = np.max(self.Qavg, axis=1)
+        self.Qr, self.Qr_max = np.copy(self.Qavg), np.copy(self.Qavg_max)
+        self.Pr = deep_copy(self.Pavg, self.StateSize, self.ActionSize)
+                
         # Other variables:
-        self.alpha      = alpha
         self.df         = df
-        self.epsilon    = 0.5
-        
-        
-    def learn_model(self, eps, logging = False):
-        """Uses the ModelLearner-class to get P, R & Q"""
-        
-        # Run modelLearner:
-        modelLearner = ModelLearner(self.env, df = self.df)
-        modelLearner.run_visits()
-        
-        # Unpack values 
-        self.P, self.R, self.Q = modelLearner.get_model()
-        self.Q_max = np.max(self.Q, axis=1)
-        
-        self.ICVaR, self.ICVaR_max = np.copy(self.Q), np.copy(self.Q_max)
-        self.DeltaP = {}
-        for s in range(self.StateSize):
-            self.DeltaP[s] = {}
-            for a in range(self.ActionSize):
-                self.DeltaP[s][a] = dict(self.P[s][a])
-        
+        self.epsilon    = 0.25
     
-    def update_Q(self, s, a):
+    def update_Qavg(self, s, a):
         """Updates Q-table according to (known) model dynamics (currently unused)"""
-        self.Q[s,a] = self.df * np.sum( self.P[s,a] * self.Q_max ) + self.R[s,a]
-        self.Q_max[s] = np.max(self.Q[s])
+        self.Qavg[s,a] = self.df * np.sum( self.Pavg[s,a] * self.Qavg_max ) + self.R[s,a]
+        self.Qavg_max[s] = np.max(self.Qavg[s])
     
-    def update_ICVaR(self, s, a):
+    def update_Qr(self, s, a):
         """Updates ICVaR according to (known) model dynamics"""
         
-        # 1) Make a dictionary of all non-zero elements in P (Efficiency!)
-        states, probs, icvar_max = [], [], []
-        for (state, prob) in self.P[s][a].items():
+        # 1) Read relevant vars into lists 
+        # NOTE: there must be a more efficienty way of doing this...
+        pmin, pmax, pguess, qr = [], [], [], []
+        states = []
+        for (state, prob) in self.Pavg[s][a].items():
             states.append(state)
-            probs.append(prob)
-            icvar_max.append(self.ICVaR_max[state])
-        states, probs, icvar_max = np.array(states.copy()), np.array(probs.copy()), np.array(icvar_max)
-        r = self.R[s,a]
+            pmin.append(self.Pmin[s][a][state])
+            pmax.append(self.Pmax[s][a][state])
+            pguess.append(self.Pr[s][a][state])
+            qr.append(self.Qr[s][a])
         
         
         # 2) Get ICVaR values according to custom procedure
-        delta_p_new = ModelLearner_Robust.custom_delta_minimize(probs, icvar_max, self.alpha)
+        pr = ModelLearner_Robust.custom_delta_minimize(pmin, pmax, pguess, qr)
         
         # 3) Update deltaP's and ICVaR
-        self.ICVaR[s,a] = r
+        self.Qr[s,a] = self.R[s,a]
         for (i,snext) in enumerate(states):
-            self.DeltaP[s][a][snext] = delta_p_new[i]
-            self.ICVaR[s][a] += self.df * delta_p_new[i] *icvar_max[i]
-        self.ICVaR_max[s] = np.max(self.ICVaR[s])
+            self.Pr[s][a][snext] = pr[i]
+            self.Qr[s][a] += self.df * pr[i] * qr[i]
+        self.Qr_max[s] = np.max(self.Qr[s])
+    
+    @staticmethod
+    def sort_arrays_to_indexes(arrays, indexes):
+        for (i,array) in enumerate(arrays):
+            arrays[i] = [x for _, x in sorted(zip(indexes, array))]
+        return arrays
     
     @staticmethod    
-    def custom_delta_minimize(probs, icvar, alpha):
+    def custom_delta_minimize(Pmin:np.ndarray, Pmax:np.ndarray, Pguess:np.ndarray, Qr:np.ndarray):
         """Calculates the worst-case disturbance delta of transition probabilities probs,
         according to next state icvar's and perturbation budget 1/alpha.
         
@@ -89,28 +78,30 @@ class ModelLearner_Robust():
         probabilities for the best-case scenario. By alternating these, we aim to keep the 
         total transition probability equal to 1.
         """
-        delta = np.ones(len(probs))
         
-        # 1) Sort according to icvar:
-        sorted_indices = np.argsort(icvar)
-        probs, icvar = probs[sorted_indices], icvar[sorted_indices]
+        # 1) Sort according to Qr:
+        sorted_indices = np.argsort(Qr)
+        Pmin = [p for i, p in sorted(zip(sorted_indices, Pmin))]
+        
+        Pmin, Pmax, Pguess, Qr = ModelLearner_Robust.sort_arrays_to_indexes(
+            [Pmin, Pmax, Pguess, Qr], sorted_indices)
         
         # 2) Repeatedly higher/lower probability of lowest/highest icvar elements
-        sum_delta_p = np.sum(probs)
-        changable_probs = list(range(len(probs)))   # list of probabilities we have not yet changed
+        sum_delta_p = np.sum(Pguess)
+        changable_probs = list(range(len(Pguess)))   # list of probabilities we have not yet changed
         while changable_probs:
             # Higher probability of worst outcomes
             if sum_delta_p <= 1:
                 this_i = changable_probs[0]
-                delta[this_i] = 1/alpha
-                sum_delta_p += probs[this_i] * (1/alpha - 1)
+                sum_delta_p +=  Pmax[this_i] - Pguess[this_i]
+                Pguess[this_i] = Pmax[this_i]
                 lowest_i_highered = this_i
                 changable_probs.pop(0)
             # lower probability of best outcomes
             elif sum_delta_p > 1:
                 this_i = changable_probs[-1]
-                delta[this_i] = 0   # it should already be..
-                sum_delta_p -= probs[this_i]
+                sum_delta_p -= Pguess[this_i] - Pmin[this_i]
+                Pguess[this_i] = Pmin[this_i]
                 highest_i_lowered = this_i
                 changable_probs.pop(-1)
                 
@@ -119,55 +110,42 @@ class ModelLearner_Robust():
             pass
         # If our total probability is too low, we must compensate by upping the last probability we lowered.
         elif sum_delta_p < 1:
-            required_p = 1-sum_delta_p 
-            delta[highest_i_lowered] = required_p / probs[highest_i_lowered]
+            gap = 1-sum_delta_p 
+            Pguess[highest_i_lowered] += gap
         # Similarly, if our total probability is too high, we compensate by lowering the last probability upped.
         elif sum_delta_p > 1:
-            required_p = 1 - (sum_delta_p - probs[lowest_i_highered]*delta[lowest_i_highered])
-            delta[lowest_i_highered] = required_p / probs[lowest_i_highered]
+            gap = sum_delta_p - 1
+            Pguess[lowest_i_highered] -= gap
 
         # 4) Restore original order
         original_indices = np.argsort(sorted_indices)
-        delta_p_new = delta[original_indices] * probs[original_indices]
-        return delta_p_new
-        
+        return ModelLearner_Robust.sort_arrays_to_indexes([Pguess], original_indices)[0]
         
         
     def pick_action(self,s):
         """Pick higheste icvar-action epsilon-greedily"""
         if np.random.rand() < self.epsilon:
             return np.random.randint(self.ActionSize)
-        return np.argmax(self.ICVaR[s])
+        return np.argmax(self.Qr[s])
     
-    def run(self, updates = 1_000, eps_modelLearner = 10_000, logging = True):
+    def run(self, updates = 1_000, logging = True):
         """Calculates model dynamics using eps_modelearning episodes, then ICVaR using
         updates updates per state."""
-        
-        # Get P, R & Q from model learner
-        if logging:
-            print("Calculating model dynamics using ModelLearner module:")
-        self.learn_model(eps_modelLearner, logging)
 
-        # Learn ICVaR
-        if logging:
-            print("Calculating ICVaR:")
         for i in range(updates):
             S = np.arange(self.StateSize)
             np.random.shuffle(S)
             for s in S:
                 a = self.pick_action(s)
-                self.update_ICVaR(s, a)
+                self.update_Qr(s, a)
                 
             if (i%(np.min([updates/10, 1000])) == 0 and logging):
                 print("Episode {} completed!".format(i+1))
 
     def get_model(self):
-        """Return all model tables (P, R, Q, DeltaP, ICVaR)"""
-        return (self.P, self.R, self.Q, self.DeltaP, self.ICVaR)
+        """Return (Pr, Qr)"""
+        return (self.Pr, self.Qr)
 
-    def get_model_dictionaries(self):
-        """returns both P and DeltaP as dictionaries"""
-        return (self.P, self.DeltaP)
     
     
     # def calculate_model_dicts(self):

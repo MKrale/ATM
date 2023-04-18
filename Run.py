@@ -43,7 +43,7 @@ from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
 from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
-from AM_Gyms.AM_Tables import AM_Environment_tables, RAM_Environment_tables
+from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -80,7 +80,7 @@ parser.add_argument('-f'                , default = None,               help='Fi
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 parser.add_argument('-utype'            , default = None,               help='type of uncertainty used (default:)')
-parser.add_argument('-alpha'            , default = 0.5,                help='Risk-sensitivity factor, only used by robust alg.')
+parser.add_argument('-alpha'            , default = 0.2,                help='Risk-sensitivity factor, only used by robust alg.')
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:
@@ -261,11 +261,11 @@ def get_env(seed = None):
 ######################################################
 
 def get_table(ENV, env_folder_name):
-        table = RAM_Environment_tables()
+        table = RAM_Environment_Explicit()
         try:
                 table.import_model(fileName = ENV.getname(), folder = env_folder_name)
         except FileNotFoundError:
-                table.learn_model_RAMEnv_alpha(ENV, alpha, df=0.90)
+                table.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
                 table.export_model( ENV.getname(), env_folder_name )
         return table
 

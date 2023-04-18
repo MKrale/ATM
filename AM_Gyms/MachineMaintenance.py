@@ -31,7 +31,9 @@ class Machine_Maintenance_Env(gym.Env):
         self.probs      = probs
         self.cum_probs  = Machine_Maintenance_Env.get_cumulative_probs(probs)
         self.rewards    = rewards
-        self.done_prob  = termination_prob
+        self.done_prob  = 0 #termination_prob
+        self.max_steps  = 50 # 10_000
+        self.nmbr_steps = 0
         
         self.state              = 0
         self.action_space       = spaces.Discrete(2)
@@ -76,11 +78,13 @@ class Machine_Maintenance_Env(gym.Env):
                               reward = self.rewards["W"]
             case _          : print("Warning: entered impossible state {}".format(self.state))
         
-        done = np.random.rand() < self.done_prob
+        self.nmbr_steps += 1
+        done = self.nmbr_steps >= 50 or np.random.rand() < self.done_prob
         return self.state+2, reward, done, {}
     
     def reset(self):
         self.state = 0
+        self.nmbr_steps = 0
         return self.state
     
     @staticmethod
@@ -98,4 +102,7 @@ class Machine_Maintenance_Env(gym.Env):
     
     def getname(self):
         return "Maintenance_N{}".format(self.N)
+    
+    def has_donestate(self):
+        return True
         

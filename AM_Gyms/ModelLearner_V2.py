@@ -7,7 +7,7 @@ import numpy as np
 class ModelLearner():
     
     
-    def __init__(self, env:AM_ENV, df = 0.90):
+    def __init__(self, env:AM_ENV, df = 0.90, record_done = None):
          
          self.env = env
          self.StateSize, self.ActionSize, self.cost, self.s_init = env.get_vars()
@@ -15,6 +15,10 @@ class ModelLearner():
          self.StateSize += 1
          self.df = df
          self.fullStepUpdate = True
+         
+         if record_done == None:
+             record_done = (env.horizon() is None)
+         self.record_done = record_done
          self.init_model()
     
     
@@ -55,7 +59,8 @@ class ModelLearner():
             done = np.min(self.counter[counter_nonzero]) > min_visits or i > max_eps
             if logging and i%250 == 0:
                 print("{} episodes completed!".format(i))
-        self.insert_done_transitions()
+        if self.record_done:
+            self.insert_done_transitions()
         print("Nmbr of episodes: {}".format(i))
         
         

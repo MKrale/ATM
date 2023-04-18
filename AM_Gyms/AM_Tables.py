@@ -4,9 +4,6 @@ from gym import Env, spaces, utils
 from AM_Gyms.AM_Env_wrapper import AM_ENV
 from AM_Gyms.ModelLearner_V2 import ModelLearner
 from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
-# from AM_Env_wrapper import AM_ENV
-# from ModelLearner import ModelLearner
-# from ModelLearner_Robust import ModelLearner_Robust
 import os
 import json
 
@@ -65,6 +62,19 @@ class Environment_Explicit_Interface():
             model = json.load(outfile, object_hook = jsonKeys2int)
         self.env_from_dict(model)
         self.isLearned = True
+        
+    def env_to_dict(self):
+        return{
+                "StateSize":    self.StateSize,
+                "ActionSize":   self.ActionSize,
+                "MeasureCost":  self.MeasureCost,
+                "s_init":       self.s_init
+                }
+        
+    def env_from_dict(self, dict):
+        self.StateSize, self.ActionSize = dict["StateSize"], dict["ActionSize"]
+        self.MeasureCost, self.s_init = dict["MeasureCost"], dict["s_init"]
+        
 
 class AM_Environment_Explicit(Environment_Explicit_Interface):
     """Class to explicitely express AM environments, i.e. with matrixes for P, R and (optionally) Q."""
@@ -97,21 +107,15 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
         
     def env_to_dict(self):
         """Returns dictiorary with all environment variables"""
-        return {
-                    "P":            self.P,
+        dict = {   "P":            self.P,
                     "R":            self.R,
-                    "Q":            self.Q,
-                    "StateSize":    self.StateSize,
-                    "ActionSize":   self.ActionSize,
-                    "MeasureCost":  self.MeasureCost,
-                    "s_init":       self.s_init
-                }
+                    "Q":            self.Q} 
+        return super().env_to_dict() | dict
         
     def env_from_dict(self, dict):
         """Changes class variables to those specified in dict"""
+        super().env_from_dict()
         self.P, self.R, self.Q = dict["P"], np.array(dict["R"]), np.array(dict["Q"])
-        self.StateSize, self.ActionSize = dict["StateSize"], dict["ActionSize"]
-        self.MeasureCost, self.s_init = dict["MeasureCost"], dict["s_init"]
 
     def get_tables(self):
         """Returns (P, R, Q)"""
@@ -134,7 +138,7 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
     PrMdp:dict
     QrMdp:np.ndarray
     
-    def learn_robust_model_Env_alpha(self, env: Env, alpha:float, N=None, N_robust=None, df = 0.8):
+    def learn_robust_model_Env_alpha(self, env: Env, alpha:float, N_standard=None, N_robust=None, df = 0.95):
         """Learn robust model from AM_Env class, assuming uncertainty is equal for all transitions and given by parameter alpha."""
         
         # Set variables
@@ -143,44 +147,62 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         # NOTE: these numbers are just randomly chosen, I should investigate this further/maybe do some check?
         if N_robust is None:
             N_robust = np.min([self.StateSize * self.ActionSize, self.ActionSize * 100])
-        if N is None:
-            N = self.StateSize * self.ActionSize * 1000
+        if N_standard is None:
+            N_standard = self.StateSize * self.ActionSize * 1000
         
-        # Learn model using ModelLearner_Robust class
-        robustLearner = ModelLearner_Robust(env, alpha, df = df)
-        robustLearner.run(updates=N_robust, eps_modelLearner=N)
-        self.Pavg, self.R, self.Qavg, self.PrMdp, self.QrMdp = robustLearner.get_model()
+        # Learn model from environment & create tables
+        env_expl = AM_Environment_Explicit()
+        env_expl.learn_model_AMEnv(env, N_standard, df = df)
+        self.Pavg, self.R, self.Qavg = env_expl.get_tables()
+        self.uP_from_alpha(alpha)
         
-        # Manually set Pmin and Pmax
+        # Learn worst-case model
+        robustLearner = ModelLearner_Robust(self, df = df)
+        robustLearner.run(updates=N_robust)
+        self.PrMdp, self.QrMdp = robustLearner.get_model()
+        
+    def uP_from_alpha(self, alpha):
+        """Set Pmin and Pmax, according to self.P and alpha"""
         self.Pmin, self.Pmax = {}, {}
         for s in range(self.StateSize):
             self.Pmin[s], self.Pmax[s] = {}, {}
             for a in range(self.ActionSize):
                 self.Pmin[s][a], self.Pmax[s][a] = {}, {}
-                for (snext, prob) in self.P[s][a].items():
+                for (snext, prob) in self.Pavg[s][a].items():
                     self.Pmin[s][a][snext], self.Pmax[s][a][snext] = np.max([prob-alpha, 0]), np.min([prob+alpha, 1])
-
+        
+        
     def env_to_dict(self):
         """Returns dictiorary with all environment variables"""
-        dict_standard = super().env_to_dict()
         dict_robust =   {
+                            "PrMdp":   self.PrMdp,
+                            "QrMdp":   self.QrMdp,
                             "Pmin":    self.Pmin,
                             "Pmax":    self.Pmax,
-                            "PrMdp":   self.PrMdp,
-                            "QrMdp":   self.QrMdp
+                            "Pavg":    self.Pavg,
+                            "Qavg":    self.Qavg,
+                            "R":       self.R
                         }
-        return dict_standard | dict_robust
+        return dict_robust | super().env_to_dict()
     
     def env_from_dict(self, dict):
         """Changes class variables to those specified in dict"""
         super().env_from_dict(dict)
+        self.Pavg, self.Qavg, self.R = dict["Pavg"], np.array(dict["Qavg"]), np.array(dict["R"])
+        self.Pmin, self.Pmax         = dict["Pmin"] , dict["Pmax"]
+        self.PrMdp, self.QrMdp       = dict["PrMdp"], np.array(dict["QrMdp"])
+    
+    def get_avg_tables(self):
+        """Returns (Pavg, R, Qavg)"""
+        return self.Pavg, self.R, self.Qavg
+    
+    def get_robust_tables(self):
+        """Returns (Pmin, Pmax, R)"""
+        return self.Pmin, self.Pmax, self.R
         
-        self.Pmin, self.Pmax    = dict["Pmin"] , dict["Pmax"]
-        self.PrMdp, self.QrMdp  = dict["PrMdp"], np.array(dict["QrMdp"])
-        
-    def get_robust_MDP_tables(self):
-        "returns P, Q, Pmin & Pmax for robust MDP"
-        return self.PrMdp, self.QrMdp, self.Pmin, self.Pmax
+    def get_worstcase_MDP_tables(self):
+        "returns P, Q, R, Pmin & Pmax for robust MDP"
+        return self.PrMdp, self.QrMdp
 
 class IntKeyDict(dict):
     def __setitem__(self, key, value):

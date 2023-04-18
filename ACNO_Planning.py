@@ -1,29 +1,39 @@
 import numpy as np
 import math as m
 import cvxpy as cp
+import time
+import pytest
 
 
-from AM_Gyms.AM_Tables import AM_Environment_tables, RAM_Environment_tables
+from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit
 from AM_Gyms.AM_Env_wrapper import AM_ENV
+
+# Globally used tolerances for floating numbers
+rtol=0.0001
+atol= 1e-10
 
 class ACNO_Planner():
     
-    def __init__(self, Env:AM_ENV, tables = AM_Environment_tables, df=0.95):
+    t = 0 # for debugging
+    
+    def __init__(self, Env:AM_ENV, tables = AM_Environment_Explicit, df=0.95):
         
         self.env        = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
-        self.P, _R, self.Q = tables.get_tables()
+        self.P, _R, self.Q = tables.get_avg_tables()
 
         self.df          = df
         self.epsilon_measuring = 0.01
         self.loopPenalty = 0.95
+        
+        
     
     def run(self, eps, logging=False):
         
         if logging:
             print("starting learning of model...")
         rewards, steps, measurements = np.zeros(eps), np.zeros(eps), np.zeros(eps)
-        log_nmbr = 100
+        log_nmbr = 1
         
         if logging:
             print("Start planning:")
@@ -31,11 +41,12 @@ class ACNO_Planner():
         for i in range(eps):
             reward, step, measurement = self.run_episode()
             rewards[i], steps[i], measurements[i] = reward, step, measurement
-            #print(i)
             if (i > 0 and i%log_nmbr == 0 and logging):
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, eps, np.average(rewards[(i-log_nmbr):i]), np.average(steps[(i-log_nmbr):i]), np.average(measurements[(i-log_nmbr):i]) ) )
-            
+        
+        if self.t > 0:
+            print(self.t)
         return (np.sum(rewards), rewards, steps, measurements)
     
     def run_episode(self):
@@ -51,7 +62,9 @@ class ACNO_Planner():
         while not done:
 
             nextBelief = self.compute_next_belief   (currentBelief, currentAction)
-            if currentBelief == nextBelief:
+            if currentBelief == pytest.approx(nextBelief, rtol, atol):
+                if len(currentBelief) == 1:
+                    currentAction = np.random.choice(self.ActionSize)
                 currentMeasuring = True
             else:
                 nextAction = self.determine_action      (nextBelief)
@@ -64,7 +77,6 @@ class ACNO_Planner():
                 total_measures += 1
             else:
                 cost = 0
-            #print(currentBelief, currentAction, currentMeasuring, nextBelief)
             total_reward += reward - cost
             total_steps += 1
             currentBelief, currentAction = nextBelief, nextAction
@@ -95,12 +107,12 @@ class ACNO_Planner():
 
 class ACNO_Planner_Robust(ACNO_Planner):
     
-    def __init__(self, Env:AM_ENV, tables = RAM_Environment_tables, df=0.95):
+    def __init__(self, Env:AM_ENV, tables = RAM_Environment_Explicit, df=0.95):
         self.env        = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
-        self.PReal, _R, self.QReal = tables.get_tables()
-        self.P, self.Q, self.Pmin, self.Pmax = tables.get_robust_MDP_tables()
-        
+        self.PReal, _R, self.QReal = tables.get_avg_tables()
+        self.Pmin, self.Pmax, self.R = tables.get_robust_tables()
+        self.P, self.Q =  tables.get_worstcase_MDP_tables()
         self.df         = df
         self.epsilon_measuring    = 0.01
     
@@ -111,8 +123,9 @@ class ACNO_Planner_Robust(ACNO_Planner):
     
     def compute_next_belief(self, b, a):
         
+        tstart = time.time()
         b_real = custom_worst_belief(b, a, self.P, self.Pmin, self.Pmax, self.Q)
-        
+        self.t += time.time() - tstart
         return b_real
         
 
@@ -139,7 +152,7 @@ def optimal_action(b:dict, Q1:np.ndarray, Q2:np.ndarray = None, returnvalue = Fa
         thisQ1 += prob * Q1[state]
     
     thisQ1Max = np.max(thisQ1)
-    filter = np.isclose(thisQ1, thisQ1Max, rtol=0.001, atol= 1e-15)
+    filter = np.isclose(thisQ1, thisQ1Max, rtol=rtol, atol=atol)
     optimal_actions = np.arange(actionsize)[filter]
 
     
@@ -150,7 +163,7 @@ def optimal_action(b:dict, Q1:np.ndarray, Q2:np.ndarray = None, returnvalue = Fa
             thisQ2 += prob * Q1[state]
             
         thisQ2Max = np.max(thisQ2[filter])
-        filter2 = np.isclose(thisQ2, thisQ2Max, rtol=0.001, atol= 1e-15)
+        filter2 = np.isclose(thisQ2, thisQ2Max, rtol=rtol, atol=atol)
         filtersCombined = np.logical_and(filter, filter2)
         optimal_actions = np.arange(actionsize)[filtersCombined]
 

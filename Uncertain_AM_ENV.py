@@ -2,7 +2,7 @@
 import numpy as np
 from dataclasses import dataclass
 from AM_Gyms.AM_Env_wrapper import AM_ENV
-from AM_Gyms.AM_Tables import AM_Environment_tables,  RAM_Environment_tables
+from AM_Gyms.AM_Tables import AM_Environment_Explicit,  RAM_Environment_Explicit
 
 @dataclass
 class Distribution:
@@ -15,9 +15,9 @@ uniform_05 = Distribution("Uniform", 0.5)
 
 class Uncertain_AM_ENV(AM_ENV):
     
-    def __init__(self, env, table:AM_Environment_tables, distribution:Distribution = uniform_05):
+    def __init__(self, env, table:AM_Environment_Explicit, distribution:Distribution = uniform_05):
         
-        self.env = env  #only used for name-stuff
+        self.env = env  # only used for name & done-state
         self.table = table
         self.distribution = distribution
         
@@ -29,7 +29,10 @@ class Uncertain_AM_ENV(AM_ENV):
         self.P_is_chosen= np.zeros((self.StateSize, self.ActionSize), dtype=bool)
         
         self.state = 0
-        self.max_steps = 10_000 # Just guessed...        
+        self.max_steps = 10_000
+        if env.horizon() is not None:
+            self.max_steps = env.horizon()
+    
         
     def step(self, action):
         

@@ -68,6 +68,9 @@ class AM_ENV():
         
     def getname(self):
         return self.env.getname()
+    
+    def horizon(self):
+        return None
 
 
     #######################################################
