@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This file runs all experiments as used in the ICAPS23 paper, and stores them in the data-folder. For creating plots, see the Plot_Data.ipynb
-# Note: in reality, all data has been gathered by manually starting runs. Thus, this code is meant more as a reference and might take a very long to run!
+# Note: in reality, all data has been gathered by manually starting runs. Thus, this code is meant more as a reference and might take a very long time to run!
 
 # Experiments on Measuring value environment, for different measuring values:
 echo -e "\n\n============= MEASURING VALUE ENV =============\n\n"
