@@ -81,10 +81,9 @@ class ModelLearner_Robust():
         
         # 1) Sort according to Qr:
         sorted_indices = np.argsort(Qr)
-        Pmin = [p for i, p in sorted(zip(sorted_indices, Pmin))]
+        # Pmin = [p for i, p in sorted(zip(sorted_indices, Pmin))]
         
-        Pmin, Pmax, Pguess, Qr = ModelLearner_Robust.sort_arrays_to_indexes(
-            [Pmin, Pmax, Pguess, Qr], sorted_indices)
+        Pmin, Pmax, Pguess, Qr = ModelLearner_Robust.sort_arrays_to_indexes( [Pmin, Pmax, Pguess, Qr], sorted_indices )
         
         # 2) Repeatedly higher/lower probability of lowest/highest icvar elements
         sum_delta_p = np.sum(Pguess)

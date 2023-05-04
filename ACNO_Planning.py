@@ -7,6 +7,7 @@ import pytest
 
 from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit
 from AM_Gyms.AM_Env_wrapper import AM_ENV
+from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
 
 # Globally used tolerances for floating numbers
 rtol=0.0001
@@ -33,7 +34,7 @@ class ACNO_Planner():
         if logging:
             print("starting learning of model...")
         rewards, steps, measurements = np.zeros(eps), np.zeros(eps), np.zeros(eps)
-        log_nmbr = 1
+        log_nmbr = 100
         
         if logging:
             print("Start planning:")
@@ -199,25 +200,28 @@ def next_belief(b:dict, a:int, P:dict, min_probability_considered:float = 0.001)
     
     return b_next
 
-def next_belief_array(b:dict, a:int, P:np.ndarray, statesize:int, actionsize:int, flat = False):
-    b_next = {}
+# OBSOLETE?
+# def next_belief_array(b:dict, a:int, P:np.ndarray, statesize:int, actionsize:int, flat = False):
+#     """Returns the next belief state according to system dynamics, as np.array"""
+#     b_next = {}
     
-    for (s, beliefprob) in b.items():
-        for a in range(actionsize):
-            for snext in range(statesize):
-                if flat:
-                    index = index_flatten_P(statesize, actionsize, s, a, snext)
-                else:
-                    index = (s,snext)
-                if snext in b_next:
-                    b_next[snext] += beliefprob * P[index]
-                else:
-                    b_next[snext] = beliefprob * P[index]
+#     for (s, beliefprob) in b.items():
+#         for a in range(actionsize):
+#             for snext in range(statesize):
+#                 if flat:
+#                     index = index_flatten_P(statesize, actionsize, s, a, snext)
+#                 else:
+#                     index = (s,snext)
+#                 if snext in b_next:
+#                     b_next[snext] += beliefprob * P[index]
+#                 else:
+#                     b_next[snext] = beliefprob * P[index]
                     
-    return b_next
+#     return b_next
     
 
 def measuring_value(b:dict, a_b:int, Q:np.ndarray, Q_decision = None):
+    """Returns the measuring value, assuming for future states action are chosen according to Q_decision, but real values are given by Q"""
     if Q_decision is None:
         Q_decision = Q
     MV = 0
@@ -236,6 +240,7 @@ def index_unflatten_P(statesize, index):
     return (s,snext)
 
 def check_valid_P(P, Pmin, Pmax):
+    """Checks whether or not a transition interval is valid"""
     indexsize = np.size(P)
     for i in range(indexsize):
         if not (m.isclose(np.sum(P[i]), 1) and P[i] < Pmax[i] and P[i] > Pmin[i]):
@@ -243,6 +248,7 @@ def check_valid_P(P, Pmin, Pmax):
     return True
 
 def get_partial_b(state_indexes:np.ndarray, b:dict,  flat = False):
+    """Returns belief state as np.ndarray, containing only those states specified in state_indexes"""
     b_array = np.zeros(np.size(state_indexes))
     for (i,s) in enumerate(state_indexes):
         if s in b:
@@ -250,7 +256,7 @@ def get_partial_b(state_indexes:np.ndarray, b:dict,  flat = False):
     return np.array(b_array)
     
 def get_partial_P(state_indexes:np.ndarray, P:dict, a:int, flat = False):
-    
+    """Returns probability matrix as np.ndarray, containing only those transitions between states specified in state_indexes""" 
     statesize = np.size(state_indexes)
     if flat:
         P_array = np.zeros(statesize * statesize)
@@ -275,54 +281,82 @@ def b_array_to_dict(b_array:np.ndarray, indexes:np.ndarray, min_probability_cons
         if prob > 0:
             b_dict[indexes[index]] = prob
     return b_dict
+
+def get_Ps_for_belief(state_indexes:np.ndarray, b:dict, a:int, P:dict, Pmin:dict, Pmax:dict):
+    """Returns arrays of current belief and next possible beliefs, according to  """
+    
+    # Initialize arrays
+    size = np.size(state_indexes)
+    b_array = np.zeros(size)
+    bnext, bnext_min, bnext_max = np.zeros(size), np.zeros(size), np.zeros(size)
+    
+    # For each non-zero b[s], add to b_array, then add P*b[s] to all bnext-arrays
+    for (i,s) in enumerate(state_indexes):
+        if s in b:
+            b_array[i] = b[s]
+            for (i_next, s_next) in enumerate(state_indexes):
+                if s_next in Pmax[s][a]:
+                    bnext     [i_next] += b[s] * P    [s][a][s_next]
+                    bnext_min [i_next] += b[s] * Pmin [s][a][s_next]
+                    bnext_max [i_next] += b[s] * Pmax [s][a][s_next]
+
+    return (b_array, bnext, bnext_min, bnext_max)
             
 def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarray, min_probability_considered:float = 0.01):
-
     """We rewrite our worst-case probability function as the solution of a linear program of the following form:
     
     minimize b
-    
-    
     """
-    
     # Unpack P & Q into arrays of required sizes
     relevant_current_states, relevant_next_states = [], []
     for s in b.keys():
         relevant_current_states.append(s)
         for snext in Pmax[s][a].keys():
             relevant_next_states.append(snext)
-    relevant_next_states = np.unique(relevant_next_states)
     state_indexes = np.unique(np.append(relevant_current_states, relevant_next_states))
     statesize, actionsize = np.size(state_indexes), np.shape(Q)[1]
     
-    Pmin_small = get_partial_P(state_indexes, Pmin, a, flat=False)
-    Pmax_small = get_partial_P(state_indexes, Pmax, a, flat=False)
-    Q_small = Q[state_indexes]
-    b_array = get_partial_b(state_indexes, b)
+    b_array, bnext, bnext_min, bnext_max = get_Ps_for_belief(state_indexes, b, a, Pguess, Pmin, Pmax)
+    # print(bnext, bnext_min, bnext_max)
+    Q_small = np.max(Q[state_indexes], axis = 1)
+    # print(Q_small)
     
-    P = cp.Variable( (statesize,statesize) )
-    bnext = cp.Variable(statesize)
+    bnext_robust = np.array(ModelLearner_Robust.custom_delta_minimize(bnext_min, bnext_max, bnext, Q_small))
+    bnext_robust = b_array_to_dict(bnext_robust, state_indexes)
+    return bnext_robust
     
-    Qmax = cp.Variable()
-    objective = cp.Minimize(Qmax)
-    constraints = [bnext == b_array @ P] # @ ?
-    for a in range(actionsize):
-        constraints.append(Qmax >= bnext @ Q_small[:,a])
-    for (index, state) in enumerate(state_indexes):
-        if state in b:
-            constraints.append(cp.sum(P[index]) == 1)
-            constraints.append(P[index] >= Pmin_small[index])
-            constraints.append(P[index] <= Pmax_small[index])
     
-    problem = cp.Problem(objective, constraints)
-    #problem.solve(solver=cp.GLPK)
-    problem.solve(solver=cp.GLOP)
-    if bnext.value is None:
-        print("Error: solver failed!: {}".format(problem.status))
-        return next_belief(b,a,Pguess)
+    # Pmin_small   = get_partial_P(state_indexes, Pmin, a, flat=False)
+    # Pmax_small   = get_partial_P(state_indexes, Pmax, a, flat=False)
+    # Pguess_small = get_partial_P(state_indexes, Pguess, a, flat=False)
+    # Q_small = Q[state_indexes]
+    # b_array = get_partial_b(state_indexes, b)
+        
+    # Define as Convex problem & solve (slow...)
+    
+    # P = cp.Variable( (statesize,statesize) )
+    # bnext = cp.Variable(statesize)
+    
+    # Qmax = cp.Variable()
+    # objective = cp.Minimize(Qmax)
+    # constraints = [bnext == b_array @ P] # @ ?
+    # for a in range(actionsize):
+    #     constraints.append(Qmax >= bnext @ Q_small[:,a])
+    # for (index, state) in enumerate(state_indexes):
+    #     if state in b:
+    #         constraints.append(cp.sum(P[index]) == 1)
+    #         constraints.append(P[index] >= Pmin_small[index])
+    #         constraints.append(P[index] <= Pmax_small[index])
+    
+    # problem = cp.Problem(objective, constraints)
+    # #problem.solve(solver=cp.GLPK)
+    # problem.solve(solver=cp.GLOP)
+    # if bnext.value is None:
+    #     print("Error: solver failed!: {}".format(problem.status))
+    #     return next_belief(b,a,Pguess)
     
 
-    b_worst_dict = b_array_to_dict(bnext.value, state_indexes)
+    # b_worst_dict = b_array_to_dict(bnext.value, state_indexes)
     return b_worst_dict
     
     
