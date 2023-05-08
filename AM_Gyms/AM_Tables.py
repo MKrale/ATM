@@ -80,7 +80,7 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
     """Class to explicitely express AM environments, i.e. with matrixes for P, R and (optionally) Q."""
     
     P:dict
-    R:np.ndarray
+    R:dict
     Q:np.ndarray
     
     StateSize:int
@@ -107,7 +107,7 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
         
     def env_to_dict(self):
         """Returns dictiorary with all environment variables"""
-        dict = {   "P":            self.P,
+        dict = {    "P":            self.P,
                     "R":            self.R,
                     "Q":            self.Q} 
         return super().env_to_dict() | dict
@@ -115,7 +115,7 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
     def env_from_dict(self, dict):
         """Changes class variables to those specified in dict"""
         super().env_from_dict()
-        self.P, self.R, self.Q = dict["P"], np.array(dict["R"]), np.array(dict["Q"])
+        self.P, self.R, self.Q = dict["P"], dict["R"], np.array(dict["Q"])
 
     def get_tables(self):
         """Returns (P, R, Q)"""
@@ -128,7 +128,7 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
     # Uncertain dynamics
     Pmin:dict
     Pmax:dict
-    R:np.ndarray
+    R:dict
     
     # Average-case dynamics
     Pavg:dict
@@ -141,22 +141,33 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
     def learn_robust_model_Env_alpha(self, env: Env, alpha:float, N_standard=None, N_robust=None, df = 0.95):
         """Learn robust model from AM_Env class, assuming uncertainty is equal for all transitions and given by parameter alpha."""
         
-        # Set variables
+        self.set_constants_env(env, N_standard, N_robust)
+        N_standard, N_robust = self.get_Ns_learning(N_standard, N_robust)
+        self.learn_MDP_env(env, N_standard, df)
+        self.uP_from_alpha(alpha)
+        self.learn_RMDP(N_robust, df)
+        
+    def set_constants_env(self, env, N_standard, N_robust):
+        """Reads constants from AM_environment"""
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         self.StateSize += 1
-        # NOTE: these numbers are just randomly chosen, I should investigate this further/maybe do some check?
+    
+    def get_Ns_learning(self, N_standard, N_robust):
+        """Determine number of runs required for learning, returns (N_standard, N_robust)"""
         if N_robust is None:
             N_robust = np.min([self.StateSize * self.ActionSize, self.ActionSize * 100])
         if N_standard is None:
             N_standard = self.StateSize * self.ActionSize * 1000
-        
-        # Learn model from environment & create tables
+        return N_standard, N_robust
+    
+    def learn_MDP_env(self, env, N_standard, df):
+        """Learn the MDP-model from an AM environment (using ModelLearner module)"""
         env_expl = AM_Environment_Explicit()
         env_expl.learn_model_AMEnv(env, N_standard, df = df)
         self.Pavg, self.R, self.Qavg = env_expl.get_tables()
-        self.uP_from_alpha(alpha)
         
-        # Learn worst-case model
+    def learn_RMDP(self, N_robust, df):
+        """Learn the worst-case transition and Q-function (using ModelLearner_Robust module), given the uMDP is already initialised in this class."""
         robustLearner = ModelLearner_Robust(self, df = df)
         robustLearner.run(updates=N_robust)
         self.PrMdp, self.QrMdp = robustLearner.get_model()
@@ -169,7 +180,7 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
             for a in range(self.ActionSize):
                 self.Pmin[s][a], self.Pmax[s][a] = {}, {}
                 for (snext, prob) in self.Pavg[s][a].items():
-                    self.Pmin[s][a][snext], self.Pmax[s][a][snext] = np.max([prob-alpha, 0]), np.min([prob+alpha, 1])
+                    self.Pmin[s][a][snext], self.Pmax[s][a][snext] = 0, np.min([prob*1/alpha, 1])
         
         
     def env_to_dict(self):
@@ -188,7 +199,7 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
     def env_from_dict(self, dict):
         """Changes class variables to those specified in dict"""
         super().env_from_dict(dict)
-        self.Pavg, self.Qavg, self.R = dict["Pavg"], np.array(dict["Qavg"]), np.array(dict["R"])
+        self.Pavg, self.Qavg, self.R = dict["Pavg"], np.array(dict["Qavg"]), dict["R"]
         self.Pmin, self.Pmax         = dict["Pmin"] , dict["Pmax"]
         self.PrMdp, self.QrMdp       = dict["PrMdp"], np.array(dict["QrMdp"])
     
@@ -201,8 +212,20 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         return self.Pmin, self.Pmax, self.R
         
     def get_worstcase_MDP_tables(self):
-        "returns P, Q, R, Pmin & Pmax for robust MDP"
-        return self.PrMdp, self.QrMdp
+        "returns Pr, Qr, R for robust MDP"
+        return self.PrMdp, self.QrMdp, self.R
+
+
+class OptAM_Environment_Explicit(RAM_Environment_Explicit):
+    """Class to explicitely express uncertain AM environments, i.e. with matrixes for uP, R and Q. 
+    Additionally contains an explicit copy of an \'average\' AM environment to be used by some functions."""
+    
+    def learn_RMDP(self, N_robust, df):
+        """Learn the best-case transition and Q-function (using ModelLearner_Robust module), given the uMDP is already initialised in this class."""
+        # Idea: maximizing is equal to minimizing with negative rewards.
+        self.R, self.Qavg = -self.R, -self.Qavg
+        super().learn_RMDP(N_robust,df)
+        self.R, self.Qavg, self.Qrmdp = -self.R, -self.Qavg, -self.Qrmdp
 
 class IntKeyDict(dict):
     def __setitem__(self, key, value):

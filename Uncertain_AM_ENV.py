@@ -15,7 +15,7 @@ uniform_05 = Distribution("Uniform", 0.5)
 
 class Uncertain_AM_ENV(AM_ENV):
     
-    def __init__(self, env, table:AM_Environment_Explicit, distribution:Distribution = uniform_05):
+    def __init__(self, env, table:RAM_Environment_Explicit, distribution:Distribution = uniform_05):
         
         self.env = env  # only used for name & done-state
         self.table = table
@@ -23,7 +23,7 @@ class Uncertain_AM_ENV(AM_ENV):
         
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = table.get_vars()
         self.StateSize = self.StateSize + 1
-        self.P, self.R, self.Q = table.get_tables()
+        self.P, self.Q, self.R = table.get_worstcase_MDP_tables()
         
         self.P_this_run = build_dictionary(self.StateSize, self.ActionSize)
         self.P_is_chosen= np.zeros((self.StateSize, self.ActionSize), dtype=bool)

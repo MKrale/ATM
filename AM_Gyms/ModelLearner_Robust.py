@@ -14,7 +14,7 @@ def deep_copy(dict, S ,A):
 class ModelLearner_Robust():
     """Class to find the worst-case transition function and Q-values for a uMDP."""
     
-    def __init__(self, model, df = 0.99):
+    def __init__(self, model, df = 0.90):
         
         # Unpacking variables from environment:
         self.model        = model # NOTE: must be of class RAM_Environment_Explicit!
@@ -34,7 +34,7 @@ class ModelLearner_Robust():
     
     def update_Qavg(self, s, a):
         """Updates Q-table according to (known) model dynamics (currently unused)"""
-        self.Qavg[s,a] = self.df * np.sum( self.Pavg[s,a] * self.Qavg_max ) + self.R[s,a]
+        self.Qavg[s,a] = self.df * "TBW"
         self.Qavg_max[s] = np.max(self.Qavg[s])
     
     def update_Qr(self, s, a):
@@ -44,22 +44,25 @@ class ModelLearner_Robust():
         # NOTE: there must be a more efficienty way of doing this...
         pmin, pmax, pguess, qr = [], [], [], []
         states = []
-        for (state, prob) in self.Pavg[s][a].items():
+        for state in self.Pavg[s][a].keys():
             states.append(state)
             pmin.append(self.Pmin[s][a][state])
             pmax.append(self.Pmax[s][a][state])
             pguess.append(self.Pr[s][a][state])
-            qr.append(self.Qr[s][a])
+            qr.append(self.Qr_max[state])
         
         
         # 2) Get ICVaR values according to custom procedure
         pr = ModelLearner_Robust.custom_delta_minimize(pmin, pmax, pguess, qr)
         
         # 3) Update deltaP's and ICVaR
-        self.Qr[s,a] = self.R[s,a]
+        thisQ = 0
         for (i,snext) in enumerate(states):
             self.Pr[s][a][snext] = pr[i]
-            self.Qr[s][a] += self.df * pr[i] * qr[i]
+            thisQ += self.df * pr[i] * qr[i]
+            if snext in self.R[s][a]:
+                thisQ += pr[i] * self.R[s][a][snext]
+        self.Qr[s][a] = thisQ
         self.Qr_max[s] = np.max(self.Qr[s])
     
     @staticmethod
@@ -132,7 +135,7 @@ class ModelLearner_Robust():
         updates updates per state."""
 
         for i in range(updates):
-            S = np.arange(self.StateSize)
+            S = np.arange(self.StateSize-1)
             np.random.shuffle(S)
             for s in S:
                 a = self.pick_action(s)

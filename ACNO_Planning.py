@@ -16,19 +16,16 @@ atol= 1e-10
 class ACNO_Planner():
     
     t = 0 # for debugging
+    epsilon_measuring = 0.05
+    loopPenalty = 1
     
     def __init__(self, Env:AM_ENV, tables = AM_Environment_Explicit, df=0.95):
         
         self.env        = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
         self.P, _R, self.Q = tables.get_avg_tables()
-
         self.df          = df
-        self.epsilon_measuring = 0.01
-        self.loopPenalty = 0.95
-        
-        
-    
+
     def run(self, eps, logging=False):
         
         if logging:
@@ -81,6 +78,7 @@ class ACNO_Planner():
             total_reward += reward - cost
             total_steps += 1
             currentBelief, currentAction = nextBelief, nextAction
+            #print(currentBelief, currentAction, currentMeasuring, reward)
         
         return total_reward, total_steps, total_measures
     
@@ -113,13 +111,15 @@ class ACNO_Planner_Robust(ACNO_Planner):
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
         self.PReal, _R, self.QReal = tables.get_avg_tables()
         self.Pmin, self.Pmax, self.R = tables.get_robust_tables()
-        self.P, self.Q =  tables.get_worstcase_MDP_tables()
+        self.P, self.Q, _R =  tables.get_worstcase_MDP_tables()
         self.df         = df
-        self.epsilon_measuring    = 0.01
-    
+        self.epsilon_measuring = super().epsilon_measuring
 
-    
     def determine_action(self, b):
+        a_opt = optimal_action(b, self.Q, self.QReal)
+        a_regular = optimal_action(b, self.QReal, None)
+        # if a_opt != a_regular and b != {64:1}:
+        #     print(b, a_opt, a_regular)
         return optimal_action(b, self.Q, self.QReal)
     
     def compute_next_belief(self, b, a):

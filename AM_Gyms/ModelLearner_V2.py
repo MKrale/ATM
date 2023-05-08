@@ -27,12 +27,15 @@ class ModelLearner():
         self.counter = np.zeros((self.StateSize, self.ActionSize))
         self.P = build_dictionary(self.StateSize, self.ActionSize)
         self.P_counter = build_dictionary(self.StateSize, self.ActionSize)
+        
+        self.R_counter = build_dictionary(self.StateSize, self.ActionSize)
+        self.R = build_dictionary(self.StateSize, self.ActionSize)
+        self.R_expected = np.zeros((self.StateSize, self.ActionSize))
+        
         for a in range(self.ActionSize):
             self.P_counter[self.doneState][a][self.doneState] = 1
-         
-        self.R_counter = np.zeros((self.StateSize, self.ActionSize))
-        self.R = np.zeros((self.StateSize, self.ActionSize))
-        
+            self.R_counter[self.doneState][a][self.doneState] = 0
+
         self.Q = np.zeros((self.StateSize, self.ActionSize))
         self.Q[self.doneState, :] = 0
         self.Q_max = np.zeros((self.StateSize))
@@ -46,7 +49,7 @@ class ModelLearner():
         """Returns P, R, Q"""
         return self.P, self.R, self.Q
     
-    def run_visits(self, min_visits = 50, max_eps = np.inf, logging = True):
+    def run_visits(self, min_visits = 100, max_eps = np.inf, logging = True):
         
         i = 0
         final_updates = 100
@@ -57,7 +60,7 @@ class ModelLearner():
             _r, _s, _m = self.run_episode()
             counter_nonzero = np.nonzero(self.counter)
             done = np.min(self.counter[counter_nonzero]) > min_visits or i > max_eps
-            if logging and i%250 == 0:
+            if logging and i%1000 == 0:
                 print("{} episodes completed!".format(i))
         if self.record_done:
             self.insert_done_transitions()
@@ -98,10 +101,13 @@ class ModelLearner():
         self.counter[s,a] += 1
         if snext in self.P[s][a]:
             self.P_counter[s][a][snext] += 1
+            self.R_counter[s][a][snext] += reward
         else:
             self.P_counter[s][a][snext] = 1
             self.P[s][a][snext] = 0
-        self.R_counter[s,a] += reward
+            self.R_counter[s][a][snext] = reward
+            self.R[s][a][snext] = 0
+        
     
     def update_model(self, state_action_pairs = None, full_update = False):
         
@@ -110,14 +116,18 @@ class ModelLearner():
         
         if state_action_pairs is not None:
             for (s,a) in state_action_pairs:
-                self.R[s,a] = self.R_counter[s,a] / self.counter[s,a]
-                Psi, Psi_learning = 0, 0
+                
+                Psi, Psi_learning, self.R_expected[s,a] = 0, 0, 0
+                self.R_expected[s,a]
                 for (s_next, _p) in self.P[s][a].items():
+                    self.R[s][a][s_next] = self.R_counter[s][a][s_next] / self.counter[s,a]
                     self.P[s][a][s_next] = self.P_counter[s][a][s_next] / self.counter[s,a]
-                    Psi += self.P[s][a][s_next] *  self.Q_max[s_next]
+                    self.R[s][a][s_next] = self.R_counter[s][a][s_next] / self.P_counter[s][a][s_next]
+                    
+                    Q_next = self.P[s][a][s_next] * (self.R[s][a][s_next] + self.df * self.Q_max[s_next])
                     Psi_learning += self.P[s][a][s_next] * self.Q_learning_max[s_next]
                 
-                self.Q[s,a] = self.R[s,a] + self.df * Psi
+                self.Q[s,a] = Q_next
                 self.Q_learning[s,a] = 1/self.counter[s,a] + self.df_learning * Psi_learning
                 
                 self.Q_max[s] = np.max(self.Q[s])

@@ -43,7 +43,7 @@ from AM_Gyms.Sepsis.SepsisEnv import SepsisEnv
 from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
-from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit
+from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit, OptAM_Environment_Explicit
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -52,7 +52,7 @@ from Baselines.ACNO_generalised.ACNO_ENV import ACNO_ENV
 from Uncertain_AM_ENV import Uncertain_AM_ENV
 
 from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
-from AM_Gyms.generic_gym import GenericGym
+from AM_Gyms.generic_gym import GenericAMGym
 
 # JSON encoder
 class NumpyEncoder(json.JSONEncoder):
@@ -80,7 +80,8 @@ parser.add_argument('-f'                , default = None,               help='Fi
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 parser.add_argument('-utype'            , default = None,               help='type of uncertainty used (default:)')
-parser.add_argument('-alpha'            , default = 0.2,                help='Risk-sensitivity factor, only used by robust alg.')
+parser.add_argument('-alpha_plan'       , default = 1,                help='Risk-sensitivity factor as used by planner. Negative values are optimistic.')
+parser.add_argument('-alpha_real'       , default = 1,                help='Risk-sensitivity factor as run on. Negative values are best-cases.')
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:
@@ -100,20 +101,34 @@ if args.env_remake in  ["False", "false"]:
         remake_env_opt = False
 
 uncertainty_type = args.utype
-alpha            = float(args.alpha)
+alpha_plan       = float(args.alpha_plan)
+alpha_real       = float(args.alpha_real)
 
 if args.save == "False" or args.save == "false":
         doSave = False
 else:
         doSave = True
 
-# Create name for Data file
-envFullName = env_name
+# Append size & variant to env_namee
+env_name_full = env_name
 if env_size != 0:
-        envFullName += "_"+env_gen+str(env_size)
+        env_name_full += "_"+env_gen+str(env_size)
 
 if env_variant != 'None':
-        envFullName += "_"+env_variant
+        env_name_full += "_"+env_variant
+
+def float_to_str(float):
+        if float < 1:
+                float_str = "0" + str(float)[2:]
+        elif float == 1:
+                float_str = "1"
+        return float_str
+     
+# Create env_names for planning & running environmens seperately
+env_name_plan = env_name_full + "_a" + float_to_str(alpha_plan)
+env_name_real = env_name_full + "_a" + float_to_str(alpha_real)
+env_name_full = env_name_full + "_p" + float_to_str(alpha_plan) + "_r" + float_to_str(alpha_real)
+
 
 ######################################################
         ###     Intitialise Environment        ###
@@ -127,7 +142,7 @@ MeasureCost_Chain_default       = 0.05
 remake_env                      = False
 env_folder_name = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
 
-def get_env(seed = None):
+def get_env(seed = None, get_base = False):
         "Returns AM_Env as specified in global (user-specified) vars"
         global MeasureCost
         global remake_env
@@ -136,7 +151,7 @@ def get_env(seed = None):
         
         # Required for making robust env through generic-gym class
         has_terminal_state = True
-        terminal_prob = 0.0
+        max_steps = 10_000
         
         np.random.seed(seed)
         
@@ -241,18 +256,21 @@ def get_env(seed = None):
                         if MeasureCost == -1:
                                 MeasureCost = 0.01
                         has_terminal_state = False
-                        terminal_prob = 0.02
+                        max_steps = 50
                 
                 case other:
-                        print("Environment not recognised, please try again!")
+                        print("Environment {} not recognised, please try again!".format(other))
                         return
-                        
+                
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
+                        
+        if alpha_real is not 1 and not get_base:
+                env_explicit = get_explicit_env(ENV, env_folder_name, env_name_real, alpha_real)
+                P, _Q, R = env_explicit.get_worstcase_MDP_tables()
+                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost, has_terminal_state, max_steps)
         
-        if uncertainty_type is not None:
-                table = get_table(ENV, env_folder_name=env_folder_name)
-                ENV = Uncertain_AM_ENV(ENV, table)
+        
         
         return ENV
 
@@ -260,19 +278,29 @@ def get_env(seed = None):
         ###     Defining Agents        ###
 ######################################################
 
-def get_table(ENV, env_folder_name):
-        table = RAM_Environment_Explicit()
+def get_explicit_env(ENV, env_folder_name, env_name, alpha):
+        # is_not_uncertain = (alpha == 0.0 or alpha >= 1.0 or alpha <=-1.0)
+        # if is_not_uncertain:
+        #         env_explicit = AM_Environment_Explicit()
+        if alpha > 0:
+                env_explicit = RAM_Environment_Explicit()
+        elif alpha <0:
+                env_explicit = OptAM_Environment_Explicit()
         try:
-                table.import_model(fileName = ENV.getname(), folder = env_folder_name)
+                env_explicit.import_model(fileName = env_name, folder = env_folder_name)
         except FileNotFoundError:
-                table.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
-                table.export_model( ENV.getname(), env_folder_name )
-        return table
+                # if is_not_uncertain:
+                #         env_explicit.learn_model_AMEnv(ENV, alpha, df=0.90)
+                # else:
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
+                env_explicit.export_model( env_name, env_folder_name )
+        return env_explicit
 
 # Both final names and previous/working names are implemented here
 def get_agent(seed=None):
         
         ENV = get_env(seed)
+        ENV_base = get_env(seed, get_base=True)
         match algo_name:
                 # AMRL-Q, as specified in original paper
                 case "AMRL":
@@ -287,16 +315,17 @@ def get_agent(seed=None):
                 case "BAM_QMDP+":
                         agent = BAM_QMDP(ENV, offline_training_steps=25)
                         
-               
                 case "ATM":
-                        table = get_table(ENV, env_folder_name)
-                        agent = ACNO_Planner(ENV, table)
+                        if (alpha_plan != 1):
+                                print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
+                        explicit_env = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
+                        agent = ACNO_Planner(ENV, explicit_env)
                 case "ATM_Robust":
-                        table = get_table(ENV, env_folder_name)
-                        agent = ACNO_Planner_Robust(ENV, table)
+                        explicit_env = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
+                        agent = ACNO_Planner_Robust(ENV, explicit_env)
                 case "ATM_Control_Robust":
-                        table = get_table(ENV, env_folder_name)
-                        agent = ACNO_Planner_Control_Robust(ENV, table)
+                        explicit_env = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
+                        agent = ACNO_Planner_Control_Robust(ENV, explicit_env)
                 # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)
@@ -306,8 +335,8 @@ def get_agent(seed=None):
                         ENV_ACNO = ACNO_ENV(ENV)
                         agent = ACNO_Agent_OTP(ENV_ACNO)
                 # A number of generic RL-agents. We did not include these in the paper.
-                case "DRQN":
-                        agent = DRQN_Agent(ENV)
+                # case "DRQN":
+                #         agent = DRQN_Agent(ENV)
                 case "QBasic":
                         agent = QBasic(ENV)
                 case "QOptimistic":
@@ -324,7 +353,7 @@ def get_agent(seed=None):
 
 # Automatically creates filename is not specified by user
 if file_name == None:
-        file_name = 'AMData_{}_{}_{}.json'.format(algo_name, envFullName, str(int(float(args.m_cost)*100)).zfill(3))
+        file_name = 'AMData_{}_{}_{}.json'.format(algo_name, env_name_full, str(int(float(args.m_cost)*100)).zfill(3))
 
 # Set measurecost if not set by environment.
 if args.m_cost == -1:
@@ -360,7 +389,7 @@ Algorithm: {}
 Environment: {}
 nmbr runs: {}
 nmbr episodes per run: {}.
-""".format(algo_name, envFullName, nmbr_runs, nmbr_eps))
+""".format(algo_name, env_name_full, nmbr_runs, nmbr_eps))
 
 agent = get_agent(0)
 
