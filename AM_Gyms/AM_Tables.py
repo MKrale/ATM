@@ -207,11 +207,11 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         """Returns (Pavg, R, Qavg)"""
         return self.Pavg, self.R, self.Qavg
     
-    def get_robust_tables(self):
+    def get_uncertain_tables(self):
         """Returns (Pmin, Pmax, R)"""
         return self.Pmin, self.Pmax, self.R
         
-    def get_worstcase_MDP_tables(self):
+    def get_robust_tables(self):
         "returns Pr, Qr, R for robust MDP"
         return self.PrMdp, self.QrMdp, self.R
 

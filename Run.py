@@ -79,9 +79,9 @@ parser.add_argument('-nmbr_runs'        , default = 1,                  help='nm
 parser.add_argument('-f'                , default = None,               help='File name (default: generated automatically)')
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
-parser.add_argument('-utype'            , default = None,               help='type of uncertainty used (default:)')
-parser.add_argument('-alpha_plan'       , default = 1,                help='Risk-sensitivity factor as used by planner. Negative values are optimistic.')
-parser.add_argument('-alpha_real'       , default = 1,                help='Risk-sensitivity factor as run on. Negative values are best-cases.')
+parser.add_argument('-alpha_plan'       , default = 1,                  help='Risk-sensitivity factor as used by planner. Negative values are optimistic.')
+parser.add_argument('-alpha_measure'    , default = 0,                  help='Risk-sensitivity factor as used for measuring by Control-Robust ATM. Negative values are optimistic, 0 means alpha_plan is copied.')
+parser.add_argument('-alpha_real'       , default = 1,                  help='Risk-sensitivity factor as run on. Negative values are best-cases.')
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:
@@ -100,9 +100,12 @@ remake_env_opt   = True
 if args.env_remake in  ["False", "false"]:
         remake_env_opt = False
 
-uncertainty_type = args.utype
-alpha_plan       = float(args.alpha_plan)
+
 alpha_real       = float(args.alpha_real)
+alpha_plan       = float(args.alpha_plan)
+alpha_measure    = float(args.alpha_measure)
+if alpha_measure == 0:
+        alpha_measure = alpha_plan
 
 if args.save == "False" or args.save == "false":
         doSave = False
@@ -127,7 +130,12 @@ def float_to_str(float):
 # Create env_names for planning & running environmens seperately
 env_name_plan = env_name_full + "_a" + float_to_str(alpha_plan)
 env_name_real = env_name_full + "_a" + float_to_str(alpha_real)
-env_name_full = env_name_full + "_p" + float_to_str(alpha_plan) + "_r" + float_to_str(alpha_real)
+env_name_measure = env_name_full + "_a" + float_to_str(alpha_measure)
+
+if alpha_plan == alpha_measure:
+        env_name_full = env_name_full + "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan)
+else:
+        env_name_full = env_name_full + "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan) +  "_m" + float_to_str(alpha_measure)
 
 
 ######################################################
@@ -265,9 +273,9 @@ def get_env(seed = None, get_base = False):
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
                         
-        if alpha_real is not 1 and not get_base:
+        if alpha_real != 1 and not get_base:
                 env_explicit = get_explicit_env(ENV, env_folder_name, env_name_real, alpha_real)
-                P, _Q, R = env_explicit.get_worstcase_MDP_tables()
+                P, _Q, R = env_explicit.get_robust_tables()
                 ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost, has_terminal_state, max_steps)
         
         
@@ -318,14 +326,15 @@ def get_agent(seed=None):
                 case "ATM":
                         if (alpha_plan != 1):
                                 print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                        explicit_env = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
-                        agent = ACNO_Planner(ENV, explicit_env)
+                        env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
+                        agent = ACNO_Planner(ENV, env_plan)
                 case "ATM_Robust":
-                        explicit_env = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
-                        agent = ACNO_Planner_Robust(ENV, explicit_env)
+                        env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
+                        agent = ACNO_Planner_Robust(ENV, env_plan)
                 case "ATM_Control_Robust":
-                        explicit_env = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
-                        agent = ACNO_Planner_Control_Robust(ENV, explicit_env)
+                        env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
+                        env_measure = get_explicit_env(ENV_base, env_folder_name, env_name_measure, alpha_measure)
+                        agent = ACNO_Planner_Control_Robust(ENV, env_plan, env_measure)
                 # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
                 case "ACNO_OWP":
                         ENV_ACNO = ACNO_ENV(ENV)

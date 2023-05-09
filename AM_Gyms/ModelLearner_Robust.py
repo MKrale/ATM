@@ -22,7 +22,7 @@ class ModelLearner_Robust():
         self.doneState  = self.StateSize -1
         
         self.Pavg, self.R, self.Qavg = self.model.get_avg_tables()
-        self.Pmin, self.Pmax, _R = self.model.get_robust_tables()
+        self.Pmin, self.Pmax, _R = self.model.get_uncertain_tables()
         
         self.Qavg_max = np.max(self.Qavg, axis=1)
         self.Qr, self.Qr_max = np.copy(self.Qavg), np.copy(self.Qavg_max)

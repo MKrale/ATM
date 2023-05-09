@@ -106,34 +106,36 @@ class ACNO_Planner():
 
 class ACNO_Planner_Robust(ACNO_Planner):
     
-    def __init__(self, Env:AM_ENV, tables = RAM_Environment_Explicit, df=0.95):
+    def __init__(self, Env:AM_ENV, tables:RAM_Environment_Explicit, df=0.95):
         self.env        = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
         self.PReal, _R, self.QReal = tables.get_avg_tables()
-        self.Pmin, self.Pmax, self.R = tables.get_robust_tables()
-        self.P, self.Q, _R =  tables.get_worstcase_MDP_tables()
+        self.Pmin, self.Pmax, self.R = tables.get_uncertain_tables()
+        self.P, self.Q, _R =  tables.get_robust_tables()
         self.df         = df
         self.epsilon_measuring = super().epsilon_measuring
 
     def determine_action(self, b):
-        a_opt = optimal_action(b, self.Q, self.QReal)
-        a_regular = optimal_action(b, self.QReal, None)
-        # if a_opt != a_regular and b != {64:1}:
-        #     print(b, a_opt, a_regular)
         return optimal_action(b, self.Q, self.QReal)
     
     def compute_next_belief(self, b, a):
-        
-        tstart = time.time()
-        b_real = custom_worst_belief(b, a, self.P, self.Pmin, self.Pmax, self.Q)
-        self.t += time.time() - tstart
-        return b_real
+        return custom_worst_belief(b, a, self.P, self.Pmin, self.Pmax, self.Q)
         
 
 class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
 
+    def __init__(self, Env:AM_ENV, PlanEnv:RAM_Environment_Explicit, MeasureEnv:RAM_Environment_Explicit, df=0.95):
+        self.env = Env
+        self.StateSize, self.ActionSize, self.cost, self.s_init = PlanEnv.get_vars()
+        self.P, self.Q, _R = PlanEnv.get_robust_tables()
+        self.Pmin, self.Pmax, self.R = PlanEnv.get_uncertain_tables()
+        self.PReal, self.QReal, _R = MeasureEnv.get_robust_tables()
+        self.df = df
+        self.epsilon_measuring = super().epsilon_measuring
+    
     def determine_measurement(self, b, a, b_next, a_next):
         b_next_real = next_belief(b,a,self.PReal)
+        #NOTE: since this is already 'less conservative' then the robust belief update, even control-robust ATM with P_Rmdp has an effect!
         return (measuring_value(b_next_real, a_next, self.QReal, self.Q) > self.cost
                 or  measuring_value(b_next, a_next, self.Q) > self.cost )
 
