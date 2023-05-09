@@ -1,6 +1,5 @@
 import numpy as np
 import math as m
-import cvxpy as cp
 import time
 import pytest
 

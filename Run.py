@@ -49,7 +49,6 @@ from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit,
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
 from AM_Gyms.AM_Env_wrapper import AM_Visualiser as visualiser
 from Baselines.ACNO_generalised.ACNO_ENV import ACNO_ENV
-from Uncertain_AM_ENV import Uncertain_AM_ENV
 
 from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
 from AM_Gyms.generic_gym import GenericAMGym
@@ -121,8 +120,13 @@ if env_variant != 'None':
         env_name_full += "_"+env_variant
 
 def float_to_str(float):
+        if float<0:
+                start = "-0"
+                float = - float
+        else:
+                start = "0"
         if float < 1:
-                float_str = "0" + str(float)[2:]
+                float_str = start + str(float)[2:]
         elif float == 1:
                 float_str = "1"
         return float_str
@@ -164,111 +168,109 @@ def get_env(seed = None, get_base = False):
         np.random.seed(seed)
         
         # Basically, just a big messy pile of if/else statements...
-        match env_name:
-                
-                # Loss-environment, called Measure Regret environment in paper.
-                case "Loss":
-                        env = Measure_Loss_Env()
-                        StateSize, ActionSize, s_init = 4, 2, 0
-                        if MeasureCost == -1:
-                                MeasureCost = 0.1
+        
+        # Loss-environment, called Measure Regret environment in paper.
+        if env_name == "Loss":
+                env = Measure_Loss_Env()
+                StateSize, ActionSize, s_init = 4, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.1
                 
                 # Frozen lake environment (includes all variants)
-                case "Lake":
-                        ActionSize, s_init = 4,0
-                        if MeasureCost == -1:
-                                MeasureCost = MeasureCost_Lake_default
-                        match env_size:
-                                case 0:
-                                        print("Using standard size map (4x4)")
-                                        env_size = 4
-                                        StateSize = 4**2
-                                case _:
-                                        StateSize = env_size**2
-                        match env_gen:
-                                case "random":
-                                        map_name = None
-                                        desc = generate_random_map(size=env_size)
-                                case "standard":
-                                        if env_size != 4 and env_size != 8:
-                                                print("Standard map type can only be used for sizes 4 and 8")
-                                        else:
-                                                map_name = "{}x{}".format(env_size, env_size)
-                                                desc = None
-                                case _:
-                                        print("Using random map")
-                                        map_name = None
-                                        desc = generate_random_map(size=env_size)
-                                        
-                        if map_name is None and remake_env_opt:
-                                remake_env = True
-                        match env_variant:
-                                case "det":
-                                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
-                                case "slippery":
-                                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=True)
-                                case "semi-slippery":
-                                        env = FrozenLakeEnv_v2(desc=desc, map_name=map_name)
-                                case None:
-                                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
-                                case other: #default = deterministic
-                                        print("Environment var not recognised! (using deterministic variant)")
-                                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
+        elif env_name == "Lake":
+                ActionSize, s_init = 4,0
+                if MeasureCost == -1:
+                        MeasureCost = MeasureCost_Lake_default
+                if env_size == 0:
+                        print("Using standard size map (4x4)")
+                        env_size = 4
+                        StateSize = 4**2
+                else:
+                        StateSize = env_size**2
                         
-                # Taxi environment, as used in AMRL-Q paper. Not used in paper           
-                case "Taxi":
-                        env = gym.make('Taxi-v3')
-                        StateSize, ActionSize, s_init = 500, 6, -1
-                        if MeasureCost == -1:
-                                MeasureCost = MeasureCost_Taxi_default
-
-                # Chain environment, as used in AMRL-Q paper. Not used in paper
-                case "Chain":
-                        match env_size:
-                                case '10':
-                                        StateSize = 10
-                                case '20':
-                                        StateSize = 20
-                                case '30':
-                                        StateSize = 30
-                                case '50':
-                                        StateSize = 50
-                                case other: # default
-                                        print("env_map not recognised!")
-                                        StateSize = 20
+                if env_gen == "random":
+                        map_name = None
+                        desc = generate_random_map(size=env_size)
+                elif env_gen == "standard":
+                        if env_size != 4 and env_size != 8:
+                                print("Standard map type can only be used for sizes 4 and 8")
+                        else:
+                                map_name = "{}x{}".format(env_size, env_size)
+                                desc = None
+                else:
+                        print("Using random map")
+                        map_name = None
+                        desc = generate_random_map(size=env_size)
                                 
-                        env = NChainEnv(StateSize)
-                        ActionSize, s_init = 2, 0
-                        if MeasureCost == -1:
-                                MeasureCost = MeasureCost_Chain_default
-              
-                # Sepsis environment, as used in ACNO-paper. Not used in paper
-                case 'Sepsis':
-                        env = SepsisEnv()
-                        StateSize, ActionSize, s_init = 720, 8, -1
-                        if MeasureCost == -1:
-                                MeasureCost = 0.05
-
-                # Standard OpenAI Gym blackjack environment. Not used in paper
-                case 'Blackjack':
-                        env = BlackjackEnv()
-                        StateSize, ActionSize, s_init = 704, 2, -1
-                        if MeasureCost ==-1:
-                                MeasureCost = 0.05
-
-                case "Maintenance":
-                        if env_size == 0:
-                                env_size = 8
-                        env = Machine_Maintenance_Env(N=env_size)
-                        StateSize, ActionSize, s_init = env_size+3, 2, 0
-                        if MeasureCost == -1:
-                                MeasureCost = 0.01
-                        has_terminal_state = False
-                        max_steps = 50
+                if map_name is None and remake_env_opt:
+                        remake_env = True
+                        
                 
-                case other:
-                        print("Environment {} not recognised, please try again!".format(other))
-                        return
+                if env_variant == "det":
+                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
+                elif env_variant == "slippery":
+                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=True)
+                elif env_variant == "semi-slippery":
+                        env = FrozenLakeEnv_v2(desc=desc, map_name=map_name)
+                elif env_variant == None:
+                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
+                else: #default = deterministic
+                        print("Environment var not recognised! (using deterministic variant)")
+                        env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
+                
+        # Taxi environment, as used in AMRL-Q paper. Not used in paper           
+        elif env_name == "Taxi":
+                env = gym.make('Taxi-v3')
+                StateSize, ActionSize, s_init = 500, 6, -1
+                if MeasureCost == -1:
+                        MeasureCost = MeasureCost_Taxi_default
+
+        # Chain environment, as used in AMRL-Q paper. Not used in paper
+        elif env_name == "Chain":
+                if env_size == '10':
+                        StateSize = 10
+                elif env_size == '20':
+                        StateSize = 20
+                elif env_size == '30':
+                        StateSize = 30
+                elif env_size == '50':
+                        StateSize = 50
+                else: # default
+                        print("env_map not recognised!")
+                        StateSize = 20
+                        
+                env = NChainEnv(StateSize)
+                ActionSize, s_init = 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = MeasureCost_Chain_default
+        
+        # Sepsis environment, as used in ACNO-paper. Not used in paper
+        elif env_name == 'Sepsis':
+                env = SepsisEnv()
+                StateSize, ActionSize, s_init = 720, 8, -1
+                if MeasureCost == -1:
+                        MeasureCost = 0.05
+
+        # Standard OpenAI Gym blackjack environment. Not used in paper
+        elif env_name == 'Blackjack':
+                env = BlackjackEnv()
+                StateSize, ActionSize, s_init = 704, 2, -1
+                if MeasureCost ==-1:
+                        MeasureCost = 0.05
+
+        elif env_name == "Maintenance":
+                if env_size == 0:
+                        env_size = 8
+                env = Machine_Maintenance_Env(N=env_size)
+                StateSize, ActionSize, s_init = env_size+3, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.01
+                has_terminal_state = False
+                max_steps = 50
+        
+        else:
+                print("Environment {} not recognised, please try again!".format(env_name))
+                return
                 
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
@@ -276,7 +278,7 @@ def get_env(seed = None, get_base = False):
         if alpha_real != 1 and not get_base:
                 env_explicit = get_explicit_env(ENV, env_folder_name, env_name_real, alpha_real)
                 P, _Q, R = env_explicit.get_robust_tables()
-                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost, has_terminal_state, max_steps)
+                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, has_terminal_state, max_steps)
         
         
         
@@ -294,6 +296,7 @@ def get_explicit_env(ENV, env_folder_name, env_name, alpha):
                 env_explicit = RAM_Environment_Explicit()
         elif alpha <0:
                 env_explicit = OptAM_Environment_Explicit()
+                alpha = - alpha
         try:
                 env_explicit.import_model(fileName = env_name, folder = env_folder_name)
         except FileNotFoundError:
@@ -309,50 +312,49 @@ def get_agent(seed=None):
         
         ENV = get_env(seed)
         ENV_base = get_env(seed, get_base=True)
-        match algo_name:
-                # AMRL-Q, as specified in original paper
-                case "AMRL":
-                        agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
+        # AMRL-Q, as specified in original paper
+        if algo_name == "AMRL":
+                agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
                 # AMRL-Q, alter so it is completely greedy in last steps.
-                case "AMRL_greedy":
-                        agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
-                # BAM_QMDP, named Dyna-ATMQ in paper. Variant with no offline training
-                case "BAM_QMDP":
-                        agent = BAM_QMDP(ENV, offline_training_steps=0)
-                # BAM_QMDP, named Dyna-ATMQ in paper. Variant with 25 offline training steps per real step
-                case "BAM_QMDP+":
-                        agent = BAM_QMDP(ENV, offline_training_steps=25)
-                        
-                case "ATM":
-                        if (alpha_plan != 1):
-                                print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                        env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
-                        agent = ACNO_Planner(ENV, env_plan)
-                case "ATM_Robust":
-                        env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
-                        agent = ACNO_Planner_Robust(ENV, env_plan)
-                case "ATM_Control_Robust":
-                        env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
-                        env_measure = get_explicit_env(ENV_base, env_folder_name, env_name_measure, alpha_measure)
-                        agent = ACNO_Planner_Control_Robust(ENV, env_plan, env_measure)
-                # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
-                case "ACNO_OWP":
-                        ENV_ACNO = ACNO_ENV(ENV)
-                        agent = ACNO_Agent_OWP(ENV_ACNO)
-                # Observe-then-plan agent from ACNO-paper. As used in paper, slight alterations made from original
-                case "ACNO_OTP":
-                        ENV_ACNO = ACNO_ENV(ENV)
-                        agent = ACNO_Agent_OTP(ENV_ACNO)
-                # A number of generic RL-agents. We did not include these in the paper.
-                # case "DRQN":
-                #         agent = DRQN_Agent(ENV)
-                case "QBasic":
-                        agent = QBasic(ENV)
-                case "QOptimistic":
-                        agent = QOptimistic(ENV)
-                case "QDyna":
-                        agent = QDyna(ENV)
-                case other:
+        elif algo_name == "AMRL_greedy":
+                agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
+        # BAM_QMDP, named Dyna-ATMQ in paper. Variant with no offline training
+        elif algo_name == "BAM_QMDP":
+                agent = BAM_QMDP(ENV, offline_training_steps=0)
+        # BAM_QMDP, named Dyna-ATMQ in paper. Variant with 25 offline training steps per real step
+        elif algo_name == "BAM_QMDP+":
+                agent = BAM_QMDP(ENV, offline_training_steps=25)
+                
+        elif algo_name == "ATM":
+                if (alpha_plan != 1):
+                        print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
+                agent = ACNO_Planner(ENV, env_plan)
+        elif algo_name == "ATM_Robust":
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
+                agent = ACNO_Planner_Robust(ENV, env_plan)
+        elif algo_name == "ATM_Control_Robust":
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
+                env_measure = get_explicit_env(ENV_base, env_folder_name, env_name_measure, alpha_measure)
+                agent = ACNO_Planner_Control_Robust(ENV, env_plan, env_measure)
+        # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
+        elif algo_name == "ACNO_OWP":
+                ENV_ACNO = ACNO_ENV(ENV)
+                agent = ACNO_Agent_OWP(ENV_ACNO)
+        # Observe-then-plan agent from ACNO-paper. As used in paper, slight alterations made from original
+        elif algo_name == "ACNO_OTP":
+                ENV_ACNO = ACNO_ENV(ENV)
+                agent = ACNO_Agent_OTP(ENV_ACNO)
+        # A number of generic RL-agents. We did not include these in the paper.
+        # case "DRQN":
+        #         agent = DRQN_Agent(ENV)
+        elif algo_name == "QBasic":
+                agent = QBasic(ENV)
+        elif algo_name == "QOptimistic":
+                agent = QOptimistic(ENV)
+        elif algo_name == "QDyna":
+                agent = QDyna(ENV)
+        else:
                         print("Agent not recognised, please try again!")
         return agent
 
@@ -362,7 +364,7 @@ def get_agent(seed=None):
 
 # Automatically creates filename is not specified by user
 if file_name == None:
-        file_name = 'AMData_{}_{}_{}.json'.format(algo_name, env_name_full, str(int(float(args.m_cost)*100)).zfill(3))
+        file_name = 'AMData_{}_{}_mc{}.json'.format(algo_name, env_name_full, str(int(float(args.m_cost)*100)).zfill(3))
 
 # Set measurecost if not set by environment.
 if args.m_cost == -1:
@@ -372,7 +374,8 @@ def PR_to_data(pr_time):
         "Prints timecode as used in datafiles"
         return (datetime.datetime(1970, 1, 1) + datetime.timedelta(microseconds=pr_time)).strftime("%d%m%Y%H%M%S")
 
-def export_data(rewards, steps, measures,  t_start):
+def export_data(rewards, steps, measures,
+                avg_reward, avg_steps, avg_measures, t_start):
         "Exports inputted data, as well as user-set variables, to JSON file"
         with open(rep_name+file_name, 'w') as outfile:
                 json.dump({
@@ -380,6 +383,9 @@ def export_data(rewards, steps, measures,  t_start):
                         'reward_per_eps'        :rewards,
                         'steps_per_eps'         :steps,
                         'measurements_per_eps'  :measures,
+                        'reward_avg'           :avg_reward,
+                        'steps_avg'             :avg_steps,
+                        'measurements_avg'      :avg_measures,
                         'start_time'            :t_start,
                         'current_time'          :t.perf_counter()
                 }, outfile, cls=NumpyEncoder)
@@ -408,7 +414,9 @@ for i in range(nmbr_runs):
         rewards_avg[i], steps_avg[i], measures_avg[i] =np.average(rewards[i]), np.average(steps[i]),np.average(measures[i])
         t_this_end = t.perf_counter()
         if doSave:
-                export_data(rewards[:i+1],steps[:i+1],measures[:i+1],t_start)
+                avg_rewards, avg_steps, avg_measures = np.average(rewards_avg), np.average(steps_avg),np.average(measures_avg)
+                export_data(rewards[:i+1],steps[:i+1],measures[:i+1],
+                            avg_rewards, avg_steps, avg_measures, t_start)
         print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i+1, t_this_end-t_this_start, rewards_avg[i], steps_avg[i], measures_avg[i]))
         if remake_env and i<nmbr_runs-1:
                 agent = get_agent(i+1)

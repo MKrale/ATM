@@ -14,7 +14,7 @@ def deep_copy(dict, S ,A):
 class ModelLearner_Robust():
     """Class to find the worst-case transition function and Q-values for a uMDP."""
     
-    def __init__(self, model, df = 0.90):
+    def __init__(self, model, df = 0.90, optimistic = False):
         
         # Unpacking variables from environment:
         self.model        = model # NOTE: must be of class RAM_Environment_Explicit!
@@ -31,6 +31,7 @@ class ModelLearner_Robust():
         # Other variables:
         self.df         = df
         self.epsilon    = 0.25
+        self.optimistic = optimistic
     
     def update_Qavg(self, s, a):
         """Updates Q-table according to (known) model dynamics (currently unused)"""
@@ -53,7 +54,7 @@ class ModelLearner_Robust():
         
         
         # 2) Get ICVaR values according to custom procedure
-        pr = ModelLearner_Robust.custom_delta_minimize(pmin, pmax, pguess, qr)
+        pr = ModelLearner_Robust.custom_delta_minimize(pmin, pmax, pguess, qr, optimistic = self.optimistic)
         
         # 3) Update deltaP's and ICVaR
         thisQ = 0
@@ -72,7 +73,7 @@ class ModelLearner_Robust():
         return arrays
     
     @staticmethod    
-    def custom_delta_minimize(Pmin:np.ndarray, Pmax:np.ndarray, Pguess:np.ndarray, Qr:np.ndarray):
+    def custom_delta_minimize(Pmin:np.ndarray, Pmax:np.ndarray, Pguess:np.ndarray, Qr:np.ndarray, optimistic=False):
         """Calculates the worst-case disturbance delta of transition probabilities probs,
         according to next state icvar's and perturbation budget 1/alpha.
         
@@ -81,6 +82,8 @@ class ModelLearner_Robust():
         probabilities for the best-case scenario. By alternating these, we aim to keep the 
         total transition probability equal to 1.
         """
+        # if optimistic:
+        #     Qr = np.negative(Qr)
         
         # 1) Sort according to Qr:
         sorted_indices = np.argsort(Qr)
@@ -112,12 +115,12 @@ class ModelLearner_Robust():
             pass
         # If our total probability is too low, we must compensate by upping the last probability we lowered.
         elif sum_delta_p < 1:
-            gap = 1-sum_delta_p 
+            gap = np.max([1-sum_delta_p, 0]) 
             Pguess[highest_i_lowered] += gap
         # Similarly, if our total probability is too high, we compensate by lowering the last probability upped.
         elif sum_delta_p > 1:
             gap = sum_delta_p - 1
-            Pguess[lowest_i_highered] -= gap
+            Pguess[lowest_i_highered] = np.max([Pguess[lowest_i_highered] - gap, 0])
 
         # 4) Restore original order
         original_indices = np.argsort(sorted_indices)
@@ -134,6 +137,9 @@ class ModelLearner_Robust():
         """Calculates model dynamics using eps_modelearning episodes, then ICVaR using
         updates updates per state."""
 
+        if logging:
+            print("Learning robust model started:")
+        
         for i in range(updates):
             S = np.arange(self.StateSize-1)
             np.random.shuffle(S)
@@ -144,6 +150,8 @@ class ModelLearner_Robust():
             if (i%(np.min([updates/10, 1000])) == 0 and logging):
                 print("Episode {} completed!".format(i+1))
 
+        if logging:
+            print("Learning completed after {} updates per state!\n\n".format(updates))
     def get_model(self):
         """Return (Pr, Qr)"""
         return (self.Pr, self.Qr)

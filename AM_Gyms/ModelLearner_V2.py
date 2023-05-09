@@ -55,6 +55,8 @@ class ModelLearner():
         final_updates = 100
         
         done = False
+        if logging:
+            print("Learning MDP-model started:")
         while not done :
             i += 1
             _r, _s, _m = self.run_episode()
@@ -64,7 +66,7 @@ class ModelLearner():
                 print("{} episodes completed!".format(i))
         if self.record_done:
             self.insert_done_transitions()
-        print("Nmbr of episodes: {}".format(i))
+        print("Learning completed in {} episodes!\n\n".format(i))
         
         
         for i in range(final_updates):
@@ -85,7 +87,7 @@ class ModelLearner():
             if done:
                 snext = self.doneState
             else:
-                (snext,cost) = self.env.measure()
+                (snext,_cost) = self.env.measure()
                 
             self.update_counters(s, a, snext, reward)
             self.update_model([(s,a)])

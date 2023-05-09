@@ -94,23 +94,22 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
         """Learns explicit model from Gym class (unimplemented!)"""
         print("to be implemented!")
         
-    def learn_model_AMEnv(self, env:AM_ENV, N = None, df = 0.8):
+    def learn_model_AMEnv(self, env:AM_ENV, N = 100, df = 0.8):
         """Learns explicit model from AM_ENV class"""
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         self.StateSize += 1
-        if N == None:
-            N = self.StateSize * self.ActionSize * 50   # just guessing how many are required...
         learner                 = ModelLearner(env, df = df)
-        learner.run_visits()
-        self.P, self.R, self.Q = learner.get_model()
+        learner.run_visits(min_visits=N)
+        self.P, self.R, self.Q  = learner.get_model()
         self.isLearned          = True
         
     def env_to_dict(self):
         """Returns dictiorary with all environment variables"""
         dict = {    "P":            self.P,
                     "R":            self.R,
-                    "Q":            self.Q} 
-        return super().env_to_dict() | dict
+                    "Q":            self.Q}
+        dict.update(super().env_to_dict())
+        return dict
         
     def env_from_dict(self, dict):
         """Changes class variables to those specified in dict"""
@@ -141,23 +140,25 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
     def learn_robust_model_Env_alpha(self, env: Env, alpha:float, N_standard=None, N_robust=None, df = 0.95):
         """Learn robust model from AM_Env class, assuming uncertainty is equal for all transitions and given by parameter alpha."""
         
-        self.set_constants_env(env, N_standard, N_robust)
+        self.set_constants_env(env)
         N_standard, N_robust = self.get_Ns_learning(N_standard, N_robust)
         self.learn_MDP_env(env, N_standard, df)
         self.uP_from_alpha(alpha)
         self.learn_RMDP(N_robust, df)
         
-    def set_constants_env(self, env, N_standard, N_robust):
+    def set_constants_env(self, env):
         """Reads constants from AM_environment"""
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         self.StateSize += 1
     
     def get_Ns_learning(self, N_standard, N_robust):
         """Determine number of runs required for learning, returns (N_standard, N_robust)"""
+        # These are just wild guesses...
         if N_robust is None:
-            N_robust = np.min([self.StateSize * self.ActionSize, self.ActionSize * 100])
+            N_robust = np.max([self.StateSize * self.ActionSize, self.ActionSize * 250])
         if N_standard is None:
-            N_standard = self.StateSize * self.ActionSize * 1000
+            # N_standard = np.max([250, self.ActionSize])
+            N_standard = 100 * np.ceil(np.sqrt(self.StateSize)*self.ActionSize)
         return N_standard, N_robust
     
     def learn_MDP_env(self, env, N_standard, df):
@@ -194,7 +195,8 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
                             "Qavg":    self.Qavg,
                             "R":       self.R
                         }
-        return dict_robust | super().env_to_dict()
+        dict_robust.update(super().env_to_dict())
+        return dict_robust
     
     def env_from_dict(self, dict):
         """Changes class variables to those specified in dict"""
@@ -221,12 +223,22 @@ class OptAM_Environment_Explicit(RAM_Environment_Explicit):
     Additionally contains an explicit copy of an \'average\' AM environment to be used by some functions."""
     
     def learn_RMDP(self, N_robust, df):
-        """Learn the best-case transition and Q-function (using ModelLearner_Robust module), given the uMDP is already initialised in this class."""
-        # Idea: maximizing is equal to minimizing with negative rewards.
-        self.R, self.Qavg = -self.R, -self.Qavg
-        super().learn_RMDP(N_robust,df)
-        self.R, self.Qavg, self.Qrmdp = -self.R, -self.Qavg, -self.Qrmdp
-
+        """Learn the worst-case transition and Q-function (using ModelLearner_Robust module), given the uMDP is already initialised in this class."""
+        robustLearner = ModelLearner_Robust(self, df = df, optimistic = True)
+        robustLearner.run(updates=N_robust)
+        self.PrMdp, self.QrMdp = robustLearner.get_model()
+    
+    
+    
+def make_negative_recursively(dict:dict, depth:int):
+    if depth == 1:
+        for (key, val) in dict.items():
+            dict[key] = -val
+    elif depth > 1:
+        for (key, val) in dict.items():
+            dict[key] = make_negative_recursively(val, depth-1)
+    return dict
+            
 class IntKeyDict(dict):
     def __setitem__(self, key, value):
         super().__setitem__(int(key), value)

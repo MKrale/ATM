@@ -50,10 +50,8 @@ class GenericAMGym(AM_ENV):
         
         # Check if done
         self.steps_taken += 1
-        #print(self.state, self.StateSize, self.has_terminal_state)
         done = (self.has_terminal_state and self.state == self.StateSize-1
                 or self.steps_taken > self.max_steps)
-        
         return reward, done
     
     def measure(self):

@@ -51,9 +51,8 @@ class Machine_Maintenance_Env(gym.Env):
         
         
         # Choose correct transition probs according to action:
-        match action:
-            case 0: current_cum_probs = self.cum_probs["Working"]
-            case 1: current_cum_probs = self.cum_probs["Repair"]
+        if   action == 0: current_cum_probs = self.cum_probs["Working"]
+        elif action == 1: current_cum_probs = self.cum_probs["Repair"]
         
         # Transition state:
         rnd = np.random.rand()
@@ -62,21 +61,19 @@ class Machine_Maintenance_Env(gym.Env):
             cum_prob = current_cum_probs[transition]
             if cum_prob > rnd and not has_transitioned:
                 has_transitioned = True
-                match transition:
-                    case "Next" : self.state = min(self.state+1, self.N)
-                    case "This" : pass
-                    case "R1"   : self.state = -1
-                    case "R2"   : self.state = -2
-                    case _      : print("Transition not recognised: probability dictionary likely set up wrong!")
+                if transition == "Next"     : self.state = min(self.state+1, self.N)
+                elif transition == "This"   : pass
+                elif transition == "R1"     : self.state = -1
+                elif transition == "R2"     : self.state = -2
+                else                        : print("Transition not recognised: probability dictionary likely set up wrong!")
         
         # Determine reward:
-        match self.state:
-            case -2         : reward = self.rewards["R2"]
-            case -1         : reward = self.rewards["R1"]
-            case self.N     : reward = self.rewards["B"]
-            case n if n in list(range(self.N)):
-                              reward = self.rewards["W"]
-            case _          : print("Warning: entered impossible state {}".format(self.state))
+        if self.state == -2         : reward = self.rewards["R2"]
+        elif self.state == -1       : reward = self.rewards["R1"]
+        elif self.state == self.N   : reward = self.rewards["B"]
+        elif self.state in list(range(self.N)):
+                            reward = self.rewards["W"]
+        else                        : print("Warning: entered impossible state {}".format(self.state))
         
         self.nmbr_steps += 1
         done = self.nmbr_steps >= 50 or np.random.rand() < self.done_prob
