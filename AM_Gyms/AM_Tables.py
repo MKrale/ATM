@@ -158,7 +158,7 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
             N_robust = np.max([self.StateSize * self.ActionSize, self.ActionSize * 250])
         if N_standard is None:
             # N_standard = np.max([250, self.ActionSize])
-            N_standard = 100 * np.ceil(np.sqrt(self.StateSize)*self.ActionSize)
+            N_standard = 200 #100 * np.ceil(np.sqrt(self.StateSize)*self.ActionSize)
         return N_standard, N_robust
     
     def learn_MDP_env(self, env, N_standard, df):

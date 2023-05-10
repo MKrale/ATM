@@ -103,6 +103,7 @@ if args.env_remake in  ["False", "false"]:
 alpha_real       = float(args.alpha_real)
 alpha_plan       = float(args.alpha_plan)
 alpha_measure    = float(args.alpha_measure)
+
 if alpha_measure == 0:
         alpha_measure = alpha_plan
 
@@ -120,17 +121,16 @@ if env_variant != 'None':
         env_name_full += "_"+env_variant
 
 def float_to_str(float):
-        if float<0:
-                start = "-0"
-                float = - float
-        else:
-                start = "0"
-        if float < 1:
-                float_str = start + str(float)[2:]
-        elif float == 1:
-                float_str = "1"
-        return float_str
-     
+        if np.isclose(float, 0):
+                return "0"
+        elif float<0:
+                return "-" + float_to_str(-float)
+        elif float >= 1:
+                prefix = int(np.floor(float))
+                return str(prefix) + float_to_str(float - prefix)[1:]
+        elif float < 1:
+                return "0" + str(float)[2:]
+
 # Create env_names for planning & running environmens seperately
 env_name_plan = env_name_full + "_a" + float_to_str(alpha_plan)
 env_name_real = env_name_full + "_a" + float_to_str(alpha_real)
@@ -330,6 +330,11 @@ def get_agent(seed=None):
                         print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
                 env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
                 agent = ACNO_Planner(ENV, env_plan)
+        elif algo_name == "ATM_RMDP":
+                if (alpha_plan != 1):
+                        print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
+                agent = ACNO_Planner(ENV, env_plan, use_robust=True)
         elif algo_name == "ATM_Robust":
                 env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
                 agent = ACNO_Planner_Robust(ENV, env_plan)

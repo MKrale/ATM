@@ -18,11 +18,15 @@ class ACNO_Planner():
     epsilon_measuring = 0.05
     loopPenalty = 1
     
-    def __init__(self, Env:AM_ENV, tables = AM_Environment_Explicit, df=0.95):
+    def __init__(self, Env:AM_ENV, tables:RAM_Environment_Explicit, use_robust:bool = False, df=0.95):
         
         self.env        = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
-        self.P, _R, self.Q = tables.get_avg_tables()
+        if use_robust:
+            self.P, self.Q, _R = tables.get_robust_tables()
+        else:
+            self.P, _R, self.Q = tables.get_avg_tables()
+        
         self.df          = df
 
     def run(self, eps, logging=False):
