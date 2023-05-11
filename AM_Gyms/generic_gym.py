@@ -7,7 +7,7 @@ from AM_Gyms.AM_Env_wrapper import AM_ENV
 
 class GenericAMGym(AM_ENV):
     
-    def __init__(self, P:dict, R:dict, StateSize:int, ActionSize:int, MeasureCost:float, s_init:int, has_terminal_state:bool=True, max_steps:int = 10_000):
+    def __init__(self, P:dict, R:dict, StateSize:int, ActionSize:int, MeasureCost:float, s_init:int, name:str, has_terminal_state:bool=True, max_steps:int = 1_000):
         
         self.P      = P
         self.R      = R
@@ -28,6 +28,7 @@ class GenericAMGym(AM_ENV):
         self.has_terminal_state = has_terminal_state
         self.steps_taken = 0
         
+        self.name = name
         self.seed()
     
     def seed(self, seed=None):
@@ -61,3 +62,6 @@ class GenericAMGym(AM_ENV):
         self.state = 0
         self.steps_taken = 0
         return self.state
+    
+    def getname(self):
+        return self.name

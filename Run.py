@@ -44,6 +44,7 @@ from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit, OptAM_Environment_Explicit
+from AM_Gyms.uMeasureValueEnv import uMV_Env
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -112,13 +113,13 @@ if args.save == "False" or args.save == "false":
 else:
         doSave = True
 
-# Append size & variant to env_namee
-env_name_full = env_name
-if env_size != 0:
-        env_name_full += "_"+env_gen+str(env_size)
+# Append size & variant to env_name
+# env_name_full = env_name
+# if env_size != 0:
+#         env_name_full += "_"+env_gen+str(env_size)
 
-if env_variant != 'None':
-        env_name_full += "_"+env_variant
+# if env_variant != 'None':
+#         env_name_full += "_"+env_variant
 
 def float_to_str(float):
         if np.isclose(float, 0):
@@ -132,14 +133,15 @@ def float_to_str(float):
                 return "0" + str(float)[2:]
 
 # Create env_names for planning & running environmens seperately
-env_name_plan = env_name_full + "_a" + float_to_str(alpha_plan)
-env_name_real = env_name_full + "_a" + float_to_str(alpha_real)
-env_name_measure = env_name_full + "_a" + float_to_str(alpha_measure)
+env_postname_plan =  "_a" + float_to_str(alpha_plan)
+env_postname_real =  "_a" + float_to_str(alpha_real)
+env_postname_measure =  "_a" + float_to_str(alpha_measure)
+env_fullname_run:str
 
 if alpha_plan == alpha_measure:
-        env_name_full = env_name_full + "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan)
+        env_postname_run = "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan)
 else:
-        env_name_full = env_name_full + "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan) +  "_m" + float_to_str(alpha_measure)
+        env_postname_run = "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan) +  "_m" + float_to_str(alpha_measure)
 
 
 ######################################################
@@ -154,12 +156,12 @@ MeasureCost_Chain_default       = 0.05
 remake_env                      = False
 env_folder_name = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
 
-def get_env(seed = None, get_base = False):
+def get_env(env_postname_this:str, seed = None, get_base = False):
         "Returns AM_Env as specified in global (user-specified) vars"
         global MeasureCost
         global remake_env
         global env_size
-        global env_full_name
+        global env_fullname_run
         
         # Required for making robust env through generic-gym class
         has_terminal_state = True
@@ -173,6 +175,14 @@ def get_env(seed = None, get_base = False):
         if env_name == "Loss":
                 env = Measure_Loss_Env()
                 StateSize, ActionSize, s_init = 4, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.1
+
+        if env_name == "uMV":
+                if env_variant == 'None': p = 0.5
+                else:                     p = float(env_variant)
+                env = uMV_Env(p=p)
+                StateSize, ActionSize, s_init = 4, 3, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.1
                 
@@ -266,7 +276,7 @@ def get_env(seed = None, get_base = False):
                 if MeasureCost == -1:
                         MeasureCost = 0.01
                 has_terminal_state = False
-                max_steps = 50
+                max_steps = 100
         
         else:
                 print("Environment {} not recognised, please try again!".format(env_name))
@@ -274,13 +284,13 @@ def get_env(seed = None, get_base = False):
                 
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost
-                        
+        
+        env_fullname_run = ENV.getname() + env_postname_run  
+                     
         if alpha_real != 1 and not get_base:
-                env_explicit = get_explicit_env(ENV, env_folder_name, env_name_real, alpha_real)
+                env_explicit = get_explicit_env(ENV, env_folder_name, env_postname_real, alpha_real)
                 P, _Q, R = env_explicit.get_robust_tables()
-                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, has_terminal_state, max_steps)
-        
-        
+                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, ENV.getname(), has_terminal_state, max_steps)
         
         return ENV
 
@@ -288,7 +298,7 @@ def get_env(seed = None, get_base = False):
         ###     Defining Agents        ###
 ######################################################
 
-def get_explicit_env(ENV, env_folder_name, env_name, alpha):
+def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
         # is_not_uncertain = (alpha == 0.0 or alpha >= 1.0 or alpha <=-1.0)
         # if is_not_uncertain:
         #         env_explicit = AM_Environment_Explicit()
@@ -297,14 +307,20 @@ def get_explicit_env(ENV, env_folder_name, env_name, alpha):
         elif alpha <0:
                 env_explicit = OptAM_Environment_Explicit()
                 alpha = - alpha
+                
+        env_tag = ENV.getname() + env_postname
+        
         try:
-                env_explicit.import_model(fileName = env_name, folder = env_folder_name)
+                env_explicit.import_model(fileName = env_tag, folder = env_folder_name)
         except FileNotFoundError:
-                # if is_not_uncertain:
-                #         env_explicit.learn_model_AMEnv(ENV, alpha, df=0.90)
-                # else:
-                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
-                env_explicit.export_model( env_name, env_folder_name )
+                try:
+                        env_explicit.import_model(fileName = env_name, folder = env_folder_name)
+                except FileNotFoundError:
+                        # if is_not_uncertain:
+                        #         env_explicit.learn_model_AMEnv(ENV, alpha, df=0.90)
+                        # else:
+                        env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
+                        env_explicit.export_model( env_tag, env_folder_name )
         return env_explicit
 
 # Both final names and previous/working names are implemented here
@@ -328,19 +344,19 @@ def get_agent(seed=None):
         elif algo_name == "ATM":
                 if (alpha_plan != 1):
                         print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, 1)
                 agent = ACNO_Planner(ENV, env_plan)
         elif algo_name == "ATM_RMDP":
                 if (alpha_plan != 1):
                         print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, 1)
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, 1)
                 agent = ACNO_Planner(ENV, env_plan, use_robust=True)
         elif algo_name == "ATM_Robust":
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner_Robust(ENV, env_plan)
         elif algo_name == "ATM_Control_Robust":
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_name_plan, alpha_plan)
-                env_measure = get_explicit_env(ENV_base, env_folder_name, env_name_measure, alpha_measure)
+                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, alpha_plan)
+                env_measure = get_explicit_env(ENV_base, env_folder_name, env_postname_measure, alpha_measure)
                 agent = ACNO_Planner_Control_Robust(ENV, env_plan, env_measure)
         # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
         elif algo_name == "ACNO_OWP":
@@ -367,9 +383,11 @@ def get_agent(seed=None):
         ###     Exporting Results       ###
 ######################################################
 
+agent = get_agent(0)
+
 # Automatically creates filename is not specified by user
 if file_name == None:
-        file_name = 'AMData_{}_{}_mc{}.json'.format(algo_name, env_name_full, str(int(float(args.m_cost)*100)).zfill(3))
+        file_name = 'AMData_{}_{}_mc{}.json'.format(algo_name, env_fullname_run, str(float_to_str(args.m_cost)))
 
 # Set measurecost if not set by environment.
 if args.m_cost == -1:
@@ -409,9 +427,7 @@ Algorithm: {}
 Environment: {}
 nmbr runs: {}
 nmbr episodes per run: {}.
-""".format(algo_name, env_name_full, nmbr_runs, nmbr_eps))
-
-agent = get_agent(0)
+""".format(algo_name, env_fullname_run, nmbr_runs, nmbr_eps))
 
 for i in range(nmbr_runs):
         t_this_start = t.perf_counter()

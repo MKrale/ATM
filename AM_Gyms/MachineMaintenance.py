@@ -32,7 +32,7 @@ class Machine_Maintenance_Env(gym.Env):
         self.cum_probs  = Machine_Maintenance_Env.get_cumulative_probs(probs)
         self.rewards    = rewards
         self.done_prob  = 0 #termination_prob
-        self.max_steps  = 50 # 10_000
+        self.max_steps  = 250 # 10_000
         self.nmbr_steps = 0
         
         self.state              = 0

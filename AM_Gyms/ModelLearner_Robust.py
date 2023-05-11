@@ -7,7 +7,10 @@ def deep_copy(dict, S ,A):
     for s in range(S):
         copy[s] = {}
         for a in range(A):
-            copy[s][a] = dict[s][a]
+            copy[s][a] = {}
+            #copy[s][a] = dict[s][a]
+            for (s2, p) in dict[s][a].items():
+                copy[s][a][s2] = p
     return copy
         
 
@@ -84,13 +87,10 @@ class ModelLearner_Robust():
         """
         # if optimistic:
         #     Qr = np.negative(Qr)
-        
         # 1) Sort according to Qr:
         sorted_indices = np.argsort(Qr)
         # Pmin = [p for i, p in sorted(zip(sorted_indices, Pmin))]
-        
         Pmin, Pmax, Pguess, Qr = ModelLearner_Robust.sort_arrays_to_indexes( [Pmin, Pmax, Pguess, Qr], sorted_indices )
-        
         # 2) Repeatedly higher/lower probability of lowest/highest icvar elements
         sum_delta_p = np.sum(Pguess)
         changable_probs = list(range(len(Pguess)))   # list of probabilities we have not yet changed
@@ -139,7 +139,6 @@ class ModelLearner_Robust():
 
         if logging:
             print("Learning robust model started:")
-        
         for i in range(updates):
             S = np.arange(self.StateSize-1)
             np.random.shuffle(S)

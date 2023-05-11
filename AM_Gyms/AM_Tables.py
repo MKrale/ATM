@@ -167,11 +167,16 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         env_expl.learn_model_AMEnv(env, N_standard, df = df)
         self.Pavg, self.R, self.Qavg = env_expl.get_tables()
         
+        
+        
+        
     def learn_RMDP(self, N_robust, df):
         """Learn the worst-case transition and Q-function (using ModelLearner_Robust module), given the uMDP is already initialised in this class."""
         robustLearner = ModelLearner_Robust(self, df = df)
         robustLearner.run(updates=N_robust)
         self.PrMdp, self.QrMdp = robustLearner.get_model()
+        print(self.Pavg, "\n")
+        print(self.PrMdp, "\n\n\n\n\n\n")
         
     def uP_from_alpha(self, alpha):
         """Set Pmin and Pmax, according to self.P and alpha"""
