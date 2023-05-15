@@ -23,7 +23,7 @@ class uMV_Env(gym.Env):
         self.rsmall = rsmall
 
         self.state = 0 
-        self.action_space = spaces.Discrete(3)
+        self.action_space = spaces.Discrete(2)
         self.observation_space = spaces.Discrete(4)
         self.seed()
 
@@ -36,22 +36,19 @@ class uMV_Env(gym.Env):
         done = False
         reward = 0
 
-        # If backwards, we just reset
-        if action == 0:  
-            self.state = 0
         # Else if in state 0, we always go forward
-        elif self.state == 0:
+        if self.state == 0:
             if np.random.rand() < self.p:   # s-
                 self.state = 2
             else:
                 self.state = 1
         # For safe actions, we get the same reward
         else:
-            if action == 1:
+            if action == 0:
                 reward = self.rsmall
-            elif action == 2 and self.state == 1:
+            elif action == 1 and self.state == 1:
                 reward = self.rbig
-            elif action == 2 and self.state == 2:
+            elif action == 1 and self.state == 2:
                 reward = -self.rbig
             else: print("ERROR: impossible state-action pair reached!")
             self.state = 3
@@ -63,4 +60,16 @@ class uMV_Env(gym.Env):
         return self.state
 
     def getname(self):
-        return "uMV_{}".format(self.p)
+        return "uMV_{}".format(float_to_str(self.p))
+    
+    
+def float_to_str(float):
+        if np.isclose(float, 0):
+                return "0"
+        elif float<0:
+                return "-" + float_to_str(-float)
+        elif float >= 1:
+                prefix = int(np.floor(float))
+                return str(prefix) + float_to_str(float - prefix)[1:]
+        elif float < 1:
+                return "0" + str(float)[2:]

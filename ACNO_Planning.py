@@ -15,7 +15,7 @@ atol= 1e-10
 class ACNO_Planner():
     
     t = 0 # for debugging
-    epsilon_measuring = 0.05
+    epsilon_measuring = 0 # 0.05
     loopPenalty = 1
     
     def __init__(self, Env:AM_ENV, tables:RAM_Environment_Explicit, use_robust:bool = False, df=0.95):
@@ -81,7 +81,7 @@ class ACNO_Planner():
             total_reward += reward - cost
             total_steps += 1
             currentBelief, currentAction = nextBelief, nextAction
-            #print(currentBelief, currentAction, currentMeasuring, reward)
+            # print(currentBelief, currentAction, currentMeasuring, reward)
         
         return total_reward, total_steps, total_measures
     
@@ -112,14 +112,15 @@ class ACNO_Planner_Robust(ACNO_Planner):
     def __init__(self, Env:AM_ENV, tables:RAM_Environment_Explicit, df=0.95):
         self.env        = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
-        self.PReal, _R, self.QReal = tables.get_avg_tables()
+        # self.PReal, _R, self.QReal = tables.get_avg_tables()
         self.Pmin, self.Pmax, self.R = tables.get_uncertain_tables()
         self.P, self.Q, _R =  tables.get_robust_tables()
         self.df         = df
         self.epsilon_measuring = super().epsilon_measuring
 
+
     def determine_action(self, b):
-        return optimal_action(b, self.Q, self.QReal)
+        return optimal_action(b, self.Q, None)
     
     def compute_next_belief(self, b, a):
         return custom_worst_belief(b, a, self.P, self.Pmin, self.Pmax, self.Q)
@@ -132,14 +133,14 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
         self.StateSize, self.ActionSize, self.cost, self.s_init = PlanEnv.get_vars()
         self.P, self.Q, _R = PlanEnv.get_robust_tables()
         self.Pmin, self.Pmax, self.R = PlanEnv.get_uncertain_tables()
-        self.PReal, self.QReal, _R = MeasureEnv.get_robust_tables()
+        self.Pmeasure, self.Qmeasure, _R = MeasureEnv.get_robust_tables()
         self.df = df
         self.epsilon_measuring = super().epsilon_measuring
     
     def determine_measurement(self, b, a, b_next, a_next):
-        b_next_real = next_belief(b,a,self.PReal)
+        b_next_real = next_belief(b,a,self.Pmeasure)
         #NOTE: since this is already 'less conservative' then the robust belief update, even control-robust ATM with P_Rmdp has an effect!
-        return (measuring_value(b_next_real, a_next, self.QReal, self.Q) > self.cost
+        return (measuring_value(b_next_real, a_next, self.Qmeasure, self.Q) > self.cost
                 or  measuring_value(b_next, a_next, self.Q) > self.cost )
 
 
@@ -229,10 +230,13 @@ def measuring_value(b:dict, a_b:int, Q:np.ndarray, Q_decision = None):
     """Returns the measuring value, assuming for future states action are chosen according to Q_decision, but real values are given by Q"""
     if Q_decision is None:
         Q_decision = Q
+    # print(Q_decision, b, a_b)
     MV = 0
     for (state, prob) in b.items():
         a_m = np.argmax(Q_decision[state])
-        MV += prob * max (0.0, Q[state, a_m] - Q[state, a_b])
+        #print(Q[state, a_m] - Q[state, a_b])
+        MV += prob *  (Q[state, a_m] - Q[state, a_b])
+        # print(MV)
     return MV
 
 

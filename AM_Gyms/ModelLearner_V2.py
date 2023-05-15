@@ -121,12 +121,13 @@ class ModelLearner():
                 
                 Psi, Psi_learning, self.R_expected[s,a] = 0, 0, 0
                 self.R_expected[s,a]
+                Q_next = 0
                 for (s_next, _p) in self.P[s][a].items():
                     self.R[s][a][s_next] = self.R_counter[s][a][s_next] / self.counter[s,a]
                     self.P[s][a][s_next] = self.P_counter[s][a][s_next] / self.counter[s,a]
                     self.R[s][a][s_next] = self.R_counter[s][a][s_next] / self.P_counter[s][a][s_next]
                     
-                    Q_next = self.P[s][a][s_next] * (self.R[s][a][s_next] + self.df * self.Q_max[s_next])
+                    Q_next += self.P[s][a][s_next] * (self.R[s][a][s_next] + self.df * self.Q_max[s_next])
                     Psi_learning += self.P[s][a][s_next] * self.Q_learning_max[s_next]
                 
                 self.Q[s,a] = Q_next

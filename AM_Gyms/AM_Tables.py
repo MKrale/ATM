@@ -11,6 +11,8 @@ class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, np.integer):
+            return int(obj)
         return json.JSONEncoder.default(self, obj)
     
 def jsonKeys2int(x):
@@ -51,6 +53,7 @@ class Environment_Explicit_Interface():
             folder = os.getcwd()
         fullPath = os.path.join(folder,fileName)
         with open(fullPath, 'w') as outfile:
+            # print("\n\n",self.env_to_dict(),"\n\n")
             json.dump(self.env_to_dict(), outfile, cls=NumpyEncoder)
 
     def import_model(self, fileName, folder=None):
@@ -94,7 +97,7 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
         """Learns explicit model from Gym class (unimplemented!)"""
         print("to be implemented!")
         
-    def learn_model_AMEnv(self, env:AM_ENV, N = 100, df = 0.8):
+    def learn_model_AMEnv(self, env:AM_ENV, N = 250, df = 0.8):
         """Learns explicit model from AM_ENV class"""
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         self.StateSize += 1
@@ -113,12 +116,16 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
         
     def env_from_dict(self, dict):
         """Changes class variables to those specified in dict"""
-        super().env_from_dict()
+        super().env_from_dict(dict)
         self.P, self.R, self.Q = dict["P"], dict["R"], np.array(dict["Q"])
 
     def get_tables(self):
         """Returns (P, R, Q)"""
         return self.P, self.R, self.Q
+
+    def get_vars(self):
+        "Returns StateSize, ActionSize, MeasureCost, s_init "
+        return self.StateSize, self.ActionSize, self.MeasureCost, self.s_init
         
 class RAM_Environment_Explicit(Environment_Explicit_Interface):
     """Class to explicitely express uncertain AM environments, i.e. with matrixes for uP, R and Q. 
@@ -142,7 +149,6 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         
         self.set_constants_env(env)
         N_standard, N_robust = self.get_Ns_learning(N_standard, N_robust)
-        self.learn_MDP_env(env, N_standard, df)
         self.uP_from_alpha(alpha)
         self.learn_RMDP(N_robust, df)
         
@@ -166,17 +172,18 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         env_expl = AM_Environment_Explicit()
         env_expl.learn_model_AMEnv(env, N_standard, df = df)
         self.Pavg, self.R, self.Qavg = env_expl.get_tables()
-        
-        
-        
+    
+    def import_MDP_env(self, fileName, folder):
+        env_expl = AM_Environment_Explicit()
+        env_expl.import_model(fileName, folder)
+        self.Pavg, self.R, self.Qavg = env_expl.get_tables()
+        self.set_constants_env(env_expl)
         
     def learn_RMDP(self, N_robust, df):
         """Learn the worst-case transition and Q-function (using ModelLearner_Robust module), given the uMDP is already initialised in this class."""
         robustLearner = ModelLearner_Robust(self, df = df)
         robustLearner.run(updates=N_robust)
         self.PrMdp, self.QrMdp = robustLearner.get_model()
-        print(self.Pavg, "\n")
-        print(self.PrMdp, "\n\n\n\n\n\n")
         
     def uP_from_alpha(self, alpha):
         """Set Pmin and Pmax, according to self.P and alpha"""

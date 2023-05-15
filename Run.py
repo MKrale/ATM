@@ -80,7 +80,9 @@ parser.add_argument('-f'                , default = None,               help='Fi
 parser.add_argument('-rep'              , default = './Data/',          help='Repository to store data (default: ./Data')
 parser.add_argument('-save'             , default = True,               help='Option to save or not save data.')
 parser.add_argument('-alpha_plan'       , default = 1,                  help='Risk-sensitivity factor as used by planner. Negative values are optimistic.')
+parser.add_argument('-env_var_plan'     , default = 0,                  help='Env variant used for planning. Leave as 0 for same as real one.')
 parser.add_argument('-alpha_measure'    , default = 0,                  help='Risk-sensitivity factor as used for measuring by Control-Robust ATM. Negative values are optimistic, 0 means alpha_plan is copied.')
+parser.add_argument('-env_var_measure'  , default = 0,                  help='Env variant used for measurements. Leave as 0 for same as real one.')
 parser.add_argument('-alpha_real'       , default = 1,                  help='Risk-sensitivity factor as run on. Negative values are best-cases.')
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
@@ -104,6 +106,14 @@ if args.env_remake in  ["False", "false"]:
 alpha_real       = float(args.alpha_real)
 alpha_plan       = float(args.alpha_plan)
 alpha_measure    = float(args.alpha_measure)
+
+env_variant_plan        = args.env_var_plan
+if env_variant_plan == 0:
+        env_variant_plan = env_variant
+env_variant_measure     = args.env_var_measure
+if env_variant_measure == 0:
+        env_variant_measure = env_variant
+
 
 if alpha_measure == 0:
         alpha_measure = alpha_plan
@@ -137,11 +147,15 @@ env_postname_plan =  "_a" + float_to_str(alpha_plan)
 env_postname_real =  "_a" + float_to_str(alpha_real)
 env_postname_measure =  "_a" + float_to_str(alpha_measure)
 env_fullname_run:str
-
-if alpha_plan == alpha_measure:
-        env_postname_run = "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan)
-else:
-        env_postname_run = "_r" + float_to_str(alpha_real) + "_p" + float_to_str(alpha_plan) +  "_m" + float_to_str(alpha_measure)
+        
+env_postname_run = "_r" + float_to_str(alpha_real)
+if env_variant_plan != env_variant or env_name == "uMV":
+        env_postname_run += "_pvar" + float_to_str(float(env_variant_plan))
+env_postname_run += "_p" + float_to_str(alpha_plan)
+if env_variant_plan != env_variant_measure or env_name == "uMV":
+        env_postname_run += "_mvar" + float_to_str(float(env_variant_measure))
+if alpha_plan != alpha_measure or env_name == "uMV":
+        env_postname_run += "_m" +  float_to_str(alpha_measure)
 
 
 ######################################################
@@ -156,12 +170,14 @@ MeasureCost_Chain_default       = 0.05
 remake_env                      = False
 env_folder_name = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
 
-def get_env(env_postname_this:str, seed = None, get_base = False):
+def get_env(seed = None, get_base = False, variant=None):
         "Returns AM_Env as specified in global (user-specified) vars"
         global MeasureCost
         global remake_env
         global env_size
         global env_fullname_run
+        if variant is None:
+                variant = env_variant
         
         # Required for making robust env through generic-gym class
         has_terminal_state = True
@@ -179,12 +195,12 @@ def get_env(env_postname_this:str, seed = None, get_base = False):
                         MeasureCost = 0.1
 
         if env_name == "uMV":
-                if env_variant == 'None': p = 0.5
-                else:                     p = float(env_variant)
+                if variant == 'None': p = 0.5
+                else:                     p = float(variant)
                 env = uMV_Env(p=p)
-                StateSize, ActionSize, s_init = 4, 3, 0
+                StateSize, ActionSize, s_init = 4, 2, 0
                 if MeasureCost == -1:
-                        MeasureCost = 0.1
+                        MeasureCost = 0.2
                 
                 # Frozen lake environment (includes all variants)
         elif env_name == "Lake":
@@ -200,7 +216,7 @@ def get_env(env_postname_this:str, seed = None, get_base = False):
                         
                 if env_gen == "random":
                         map_name = None
-                        desc = generate_random_map(size=env_size)
+                        desc = generate_random_map(size=env_size, seed = seed)
                 elif env_gen == "standard":
                         if env_size != 4 and env_size != 8:
                                 print("Standard map type can only be used for sizes 4 and 8")
@@ -216,13 +232,13 @@ def get_env(env_postname_this:str, seed = None, get_base = False):
                         remake_env = True
                         
                 
-                if env_variant == "det":
+                if variant == "det":
                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
-                elif env_variant == "slippery":
+                elif variant == "slippery":
                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=True)
-                elif env_variant == "semi-slippery":
+                elif variant == "semi-slippery":
                         env = FrozenLakeEnv_v2(desc=desc, map_name=map_name)
-                elif env_variant == None:
+                elif variant == None:
                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                 else: #default = deterministic
                         print("Environment var not recognised! (using deterministic variant)")
@@ -283,9 +299,7 @@ def get_env(env_postname_this:str, seed = None, get_base = False):
                 return
                 
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
-        args.m_cost = MeasureCost
-        
-        env_fullname_run = ENV.getname() + env_postname_run  
+        args.m_cost = MeasureCost 
                      
         if alpha_real != 1 and not get_base:
                 env_explicit = get_explicit_env(ENV, env_folder_name, env_postname_real, alpha_real)
@@ -314,20 +328,31 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                 env_explicit.import_model(fileName = env_tag, folder = env_folder_name)
         except FileNotFoundError:
                 try:
-                        env_explicit.import_model(fileName = env_name, folder = env_folder_name)
+                        env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
                 except FileNotFoundError:
-                        # if is_not_uncertain:
-                        #         env_explicit.learn_model_AMEnv(ENV, alpha, df=0.90)
-                        # else:
-                        env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
-                        env_explicit.export_model( env_tag, env_folder_name )
+                        base_env = AM_Environment_Explicit()
+                        base_env.learn_model_AMEnv(ENV)
+                        base_env.export_model(ENV.getname(), env_folder_name)
+                        env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
+                env_explicit.export_model( env_tag, env_folder_name )
         return env_explicit
 
 # Both final names and previous/working names are implemented here
 def get_agent(seed=None):
+        global env_fullname_run
         
         ENV = get_env(seed)
-        ENV_base = get_env(seed, get_base=True)
+        env_fullname_run = ENV.getname() + env_postname_run 
+        ENV_base_plan = get_env(seed, get_base=True, variant = env_variant_plan)
+        ENV_base_measure = get_env(seed, get_base=True, variant = env_variant_measure)
+        
+        # print(env_variant, env_variant_plan, env_variant_measure)
+        # print(env_fullname_run)
+        # print(env_postname_run)
+
+        
+        
         # AMRL-Q, as specified in original paper
         if algo_name == "AMRL":
                 agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
@@ -344,20 +369,24 @@ def get_agent(seed=None):
         elif algo_name == "ATM":
                 if (alpha_plan != 1):
                         print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, 1)
+                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, 1)
                 agent = ACNO_Planner(ENV, env_plan)
+                
         elif algo_name == "ATM_RMDP":
                 if (alpha_plan != 1):
                         print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, 1)
+                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, 1)
                 agent = ACNO_Planner(ENV, env_plan, use_robust=True)
+                
         elif algo_name == "ATM_Robust":
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, alpha_plan)
+                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner_Robust(ENV, env_plan)
+                
         elif algo_name == "ATM_Control_Robust":
-                env_plan = get_explicit_env(ENV_base, env_folder_name, env_postname_plan, alpha_plan)
-                env_measure = get_explicit_env(ENV_base, env_folder_name, env_postname_measure, alpha_measure)
+                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
+                env_measure = get_explicit_env(ENV_base_measure, env_folder_name, env_postname_measure, alpha_measure)
                 agent = ACNO_Planner_Control_Robust(ENV, env_plan, env_measure)
+                
         # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
         elif algo_name == "ACNO_OWP":
                 ENV_ACNO = ACNO_ENV(ENV)
@@ -421,7 +450,8 @@ def export_data(rewards, steps, measures,
 rewards, steps, measures = np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps))
 t_start = 0 + t.perf_counter()
 rewards_avg, steps_avg, measures_avg = np.zeros(nmbr_runs), np.zeros(nmbr_runs), np.zeros(nmbr_runs)
-print("""
+if False:
+        print("""
 Start running agent with following settings:
 Algorithm: {}
 Environment: {}
@@ -431,7 +461,7 @@ nmbr episodes per run: {}.
 
 for i in range(nmbr_runs):
         t_this_start = t.perf_counter()
-        (r_tot, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, True) 
+        (r_tot, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, logging=False) 
         rewards_avg[i], steps_avg[i], measures_avg[i] =np.average(rewards[i]), np.average(steps[i]),np.average(measures[i])
         t_this_end = t.perf_counter()
         if doSave:
@@ -439,6 +469,6 @@ for i in range(nmbr_runs):
                 export_data(rewards[:i+1],steps[:i+1],measures[:i+1],
                             avg_rewards, avg_steps, avg_measures, t_start)
         print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i+1, t_this_end-t_this_start, rewards_avg[i], steps_avg[i], measures_avg[i]))
-        if remake_env and i<nmbr_runs-1:
-                agent = get_agent(i+1)
+        # if remake_env and i<nmbr_runs-1:
+        #         agent = get_agent(i+1)
 print("Agent Done! ({0} runs in {1} s, with average reward {2}, steps {3}, measures {4})\n\n".format(nmbr_runs, t.perf_counter()-t_start, np.average(rewards_avg), np.average(steps_avg),np.average(measures_avg)))

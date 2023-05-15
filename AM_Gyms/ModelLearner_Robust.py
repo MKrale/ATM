@@ -57,7 +57,7 @@ class ModelLearner_Robust():
         
         
         # 2) Get ICVaR values according to custom procedure
-        pr = ModelLearner_Robust.custom_delta_minimize(pmin, pmax, pguess, qr, optimistic = self.optimistic)
+        pr = ModelLearner_Robust.custom_delta_minimize(np.array(pmin), np.array(pmax), np.array(pguess), np.array(qr), optimistic = self.optimistic)
         
         # 3) Update deltaP's and ICVaR
         thisQ = 0
@@ -69,14 +69,8 @@ class ModelLearner_Robust():
         self.Qr[s][a] = thisQ
         self.Qr_max[s] = np.max(self.Qr[s])
     
-    @staticmethod
-    def sort_arrays_to_indexes(arrays, indexes):
-        for (i,array) in enumerate(arrays):
-            arrays[i] = [x for _, x in sorted(zip(indexes, array))]
-        return arrays
-    
     @staticmethod    
-    def custom_delta_minimize(Pmin:np.ndarray, Pmax:np.ndarray, Pguess:np.ndarray, Qr:np.ndarray, optimistic=False):
+    def custom_delta_minimize(Pmin:np.ndarray, Pmax:np.ndarray, Pguess:np.ndarray, Qr:np.ndarray, optimistic = False):
         """Calculates the worst-case disturbance delta of transition probabilities probs,
         according to next state icvar's and perturbation budget 1/alpha.
         
@@ -85,12 +79,11 @@ class ModelLearner_Robust():
         probabilities for the best-case scenario. By alternating these, we aim to keep the 
         total transition probability equal to 1.
         """
-        # if optimistic:
-        #     Qr = np.negative(Qr)
+        if optimistic:
+            Qr = -Qr
         # 1) Sort according to Qr:
         sorted_indices = np.argsort(Qr)
-        # Pmin = [p for i, p in sorted(zip(sorted_indices, Pmin))]
-        Pmin, Pmax, Pguess, Qr = ModelLearner_Robust.sort_arrays_to_indexes( [Pmin, Pmax, Pguess, Qr], sorted_indices )
+        Pmin, Pmax, Pguess, Qr = Pmin[sorted_indices], Pmax[sorted_indices], Pguess[sorted_indices], Qr[sorted_indices]
         # 2) Repeatedly higher/lower probability of lowest/highest icvar elements
         sum_delta_p = np.sum(Pguess)
         changable_probs = list(range(len(Pguess)))   # list of probabilities we have not yet changed
@@ -124,7 +117,7 @@ class ModelLearner_Robust():
 
         # 4) Restore original order
         original_indices = np.argsort(sorted_indices)
-        return ModelLearner_Robust.sort_arrays_to_indexes([Pguess], original_indices)[0]
+        return Pguess[original_indices]
         
         
     def pick_action(self,s):
