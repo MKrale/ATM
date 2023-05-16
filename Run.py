@@ -367,15 +367,11 @@ def get_agent(seed=None):
                 agent = BAM_QMDP(ENV, offline_training_steps=25)
                 
         elif algo_name == "ATM":
-                if (alpha_plan != 1):
-                        print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, 1)
+                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner(ENV, env_plan)
                 
         elif algo_name == "ATM_RMDP":
-                if (alpha_plan != 1):
-                        print("WARNING: Automatically set alpha_plan to 1: ATM algorithm cannot use uncertainty in planning.")
-                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, 1)
+                env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner(ENV, env_plan, use_robust=True)
                 
         elif algo_name == "ATM_Robust":
@@ -450,7 +446,10 @@ def export_data(rewards, steps, measures,
 rewards, steps, measures = np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps)), np.zeros((nmbr_runs, nmbr_eps))
 t_start = 0 + t.perf_counter()
 rewards_avg, steps_avg, measures_avg = np.zeros(nmbr_runs), np.zeros(nmbr_runs), np.zeros(nmbr_runs)
-if False:
+
+extra_logging = False
+
+if extra_logging:
         print("""
 Start running agent with following settings:
 Algorithm: {}
@@ -461,14 +460,15 @@ nmbr episodes per run: {}.
 
 for i in range(nmbr_runs):
         t_this_start = t.perf_counter()
-        (r_tot, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, logging=False) 
+        (r_tot, rewards[i], steps[i], measures[i]) = agent.run(nmbr_eps, logging=extra_logging) 
         rewards_avg[i], steps_avg[i], measures_avg[i] =np.average(rewards[i]), np.average(steps[i]),np.average(measures[i])
         t_this_end = t.perf_counter()
         if doSave:
                 avg_rewards, avg_steps, avg_measures = np.average(rewards_avg), np.average(steps_avg),np.average(measures_avg)
                 export_data(rewards[:i+1],steps[:i+1],measures[:i+1],
                             avg_rewards, avg_steps, avg_measures, t_start)
-        print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i+1, t_this_end-t_this_start, rewards_avg[i], steps_avg[i], measures_avg[i]))
+        if extra_logging:
+                print("Run {0} done with average reward {2}! (in {1} s, with {3} steps and {4} measurements avg.)\n".format(i+1, t_this_end-t_this_start, rewards_avg[i], steps_avg[i], measures_avg[i]))
         # if remake_env and i<nmbr_runs-1:
         #         agent = get_agent(i+1)
-print("Agent Done! ({0} runs in {1} s, with average reward {2}, steps {3}, measures {4})\n\n".format(nmbr_runs, t.perf_counter()-t_start, np.average(rewards_avg), np.average(steps_avg),np.average(measures_avg)))
+print("{0} agent done! ({1} runs in {2} s, with average reward {3}, steps {4}, measures {5})\n\n".format(algo_name, nmbr_runs, t.perf_counter()-t_start, np.average(rewards_avg), np.average(steps_avg),np.average(measures_avg)))
