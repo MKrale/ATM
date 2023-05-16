@@ -45,6 +45,7 @@ from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit, OptAM_Environment_Explicit
 from AM_Gyms.uMeasureValueEnv import uMV_Env
+from AM_Gyms.DroneInCorridor import DroneInCorridor
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -152,9 +153,9 @@ env_postname_run = "_r" + float_to_str(alpha_real)
 if env_variant_plan != env_variant or env_name == "uMV":
         env_postname_run += "_pvar" + float_to_str(float(env_variant_plan))
 env_postname_run += "_p" + float_to_str(alpha_plan)
-if env_variant_plan != env_variant_measure or env_name == "uMV":
+if env_variant_plan != env_variant_measure:
         env_postname_run += "_mvar" + float_to_str(float(env_variant_measure))
-if alpha_plan != alpha_measure or env_name == "uMV":
+if alpha_plan != alpha_measure:
         env_postname_run += "_m" +  float_to_str(alpha_measure)
 
 
@@ -293,6 +294,12 @@ def get_env(seed = None, get_base = False, variant=None):
                         MeasureCost = 0.01
                 has_terminal_state = False
                 max_steps = 100
+        
+        elif env_name == "Drone":
+                env = DroneInCorridor()
+                StateSize, ActionSize, s_init = 81_444, 25, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.01
         
         else:
                 print("Environment {} not recognised, please try again!".format(env_name))

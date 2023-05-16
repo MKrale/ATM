@@ -1,5 +1,6 @@
 from gym import Env
 import numpy as np
+import math as m
 
 class DroneInCorridor(Env):
     """Custom environment describing a drone flying through a corridor, with disturbance
@@ -7,71 +8,78 @@ class DroneInCorridor(Env):
     
     def __init__(self):
         
+        # Positions
         self.Xmin, self.Xmax = 0, 30
-        self.Xnmbr = self.Xmax - self.Xmin
         self.Ymin, self.Ymax = 0, 30
-        self.Ynmbr = self.Ymax - self.Ymin
-        self.VXmin, self.VXmax = -5, 5
-        self.VXnmbr = self.VXmax - self.VXmin
-        self.VYmin, self.VYmax = -5, 5
-        self.VYnmbr = self.VYmax - self.VYmin
-        self.AXmin, self.AXmax = -2, 2
-        self.AXnmbr = self.AXmax - self.AXmin
-        self.AYmin, self.AYmax = -2, 2
-        self.AYnmbr = self.AYmax - self.AYmin
+        self.Xnmbr = self.Xmax - self.Xmin + 1
+        self.Ynmbr = self.Ymax - self.Ymin + 1
         
-        self.WallXmin, self.WallXmax = 0, 10
-        self.WallYmin, self.WallYmax = 0, 10
+        # Speeds
+        self.Vmin, self.Vmax = -5, 5
+        self.Vnmbr = self.Vmax - self.Vmin + 1
+        
+        # Accelarations
+        self.Amin, self.Amax = -2, 2
+        self.Anmbr = self.Amax - self.Amin + 1
+        
+        # Walls
+        self.WallXmin, self.WallXmax = 0,  20
+        self.WallYmin, self.WallYmax = 10, 30
+        
+        # Goal area
+        self.GoalXmin, self.GoalXmax = 20, 30
+        self.GoalYmin, self.GoalYmax = 30, np.inf
         
         self.s_init = 0
-        self.reset() #sets s and other variables.
-        
-        self.set_wind_generic("still")
+        self.reset() #sets s and other variables.  
     
-    def set_wind_generic(self, name):
-        """Choose wind disturbance from presets"""
-        
-        self.DisturbanceArrayX = np.zeros( (self.Xnmbr, self.Ynmbr, self.VXnmbr))
-        self.DisturbanceArrayY = np.zeros( (self.Xnmbr, self.Ynmbr, self.VYnmbr))
-        
-        match name:
-            
-            case "still":
-                # No wind, so chance w=0 is 1
-                self.DisturbanceArrayX[:,:,-self.VXmin] = 1
-                self.DisturbanceArrayY[:,:,-self.VYmin] = 1
-                self.disturbance_name = name
-                
-            case "uniform":
-                # Equal probability of each wind disturbance
-                self.DisturbanceArrayX = np.zeros( (self.Xnmbr, self.Ynmbr, self.VXnmbr)) + 1/self.VXnmbr
-                self.DisturbanceArrayY = np.zeros( (self.Xnmbr, self.Ynmbr, self.VYnmbr)) + 1/self.VYnmbr
-                self.disturbance_name = name
-                
-            case "Gaussian_X":
-                # Probability gaussian with deviation X
-                print("UNIMPLEMENTED: disturbance kept at previous setting ({})".format(self.disturbance_name))
-                
-            case "Naive_worst_case":
-                # Sets wind maximally towards closest wall
-                print("UNIMPLEMENTED")
-        
+    # Functions for going to/from (1D) actions/states to (2/4D) variables
+    def get_state(self):
+        return self.vars_to_state(self.x, self.y, self.vx, self.vy)
     
-    # Functions for going to/from (1D) actions/states to (2/4D) variables    
+    def gerenic_index_to_position(index, dimensions, mins):
+        """Given an index and hyperrectangle dimensions, returns the corresponding position"""
+        position = []
+        for i in range(len(dimensions)):
+            size = dimensions[i][1] - dimensions[i][0]
+            pos = (index // size ** i) % size + dimensions[i][0]
+            position.append(pos - mins[i])
+        return tuple(position)
+    def generic_position_to_index(position, dimensions, mins):
+        """Given a position and hyperrectangle dimensions, returns the corresponding index"""
+        index = 0
+        for i in range(len(position)):
+            size = dimensions[i][1] - dimensions[i][0]
+            index += (position[i] + mins[i] - dimensions[i][0]) * (size ** i)
+        return index
+        
     def vars_to_state(self, x, y, vx, vy):
         """Given state variables, returns 1D state"""
-        x, y, vx, vy = x+self.Xmin, y + self.Ymin, vx + self.VXmin, vy + self.VYmin
-        return x + self.Xnmbr * ( y + self.Ynmbr * ( vx + self.VXnmbr * (vy) ) )
+        x, y, vx, vy = x - self.Xmin, y - self.Ymin, vx - self.Vmin, vy - self.Vmin
+        if y<self.WallYmin:
+              return vx + self.Vnmbr * (vy + self.Vnmbr * (x + self.Xnmbr * (y)))
+        else:
+            nmbr_previous_states = self.Vnmbr + self.Vnmbr * (self.Vnmbr + self.Vnmbr * (self.Xnmbr + self.Xnmbr * self.WallYmin) )
+            this_i = vx + self.Vnmbr * (vy + self.Vnmbr * ( (y-self.WallYmin) + self.Ynmbr * (x-self.WallXmax)))
+            return nmbr_previous_states + this_i
     
     def state_to_vars(self, state):
         """Given 1D state, returns state variables (x, y, vx, vy)"""
-        x   = state % self.Xnmbr
-        y   = ( (state - x) / self.Xnmbr) % self.Ynmbr
-        vx  = ( (state - ( x + self.Xnmbr * (y) ) ) / (self.Xnmbr * self.Ynmbr) ) % self.VXnmbr
-        vy  = ( (state - ( x + self.Xnmbr * (y + self.Ynmbr (vx)))) 
-               / (self.Xnmbr * self.Ynmbr * self.VXnmbr) ) % self.VYnmbr
-        
-        return (x-self.Xmin, y-self.Ymin, vx-self.VXmin, vy-self.VYmin)
+        # Written by chatgpt, not tested but I trust our AI overlords!
+        nmbr_previous_states = self.Vnmbr + self.Vnmbr * (self.Vnmbr + self.Vnmbr * (self.Xnmbr + self.Xnmbr * self.WallYmin))
+        if state < nmbr_previous_states:
+            y =   state                                           // (self.Xnmbr * self.Vnmbr * self.Vnmbr)
+            x =  (state % (self.Xnmbr * self.Vnmbr * self.Vnmbr)) // (self.Vnmbr * self.Vnmbr)
+            vy = (state % (self.Vnmbr * self.Vnmbr))              //  self.Vnmbr
+            vx = (state % (self.Vnmbr))                           
+            return x + self.Xmin, y + self.Ymin, vx + self.Vmin, vy + self.Vmin
+        else:
+            state = state-nmbr_previous_states
+            x =   state                                           // (self.Xnmbr * self.Vnmbr * self.Vnmbr)
+            y =  (state % (self.Xnmbr * self.Vnmbr * self.Vnmbr)) // (self.Vnmbr * self.Vnmbr)
+            vy = (state % (self.Vnmbr * self.Vnmbr))              //  self.Vnmbr
+            vx = (state % (self.Vnmbr))  
+            return x + self.Xmin + self.WallXmax, y + self.Ymin + self.WallYmin, vx + self.Vmin, vy + self.Vmin
     
     def vars_to_action(self, ax, ay):
         """Given action variables, returns 1D action"""
@@ -85,60 +93,76 @@ class DroneInCorridor(Env):
         
         return (ax - self.AXmin, ay - self.AYmin)
     
-    
-    # Functions checking if the drone is in a certain area:
-    def out_of_bounds(self, x, y):
-        return (  
-            # Outside of area  
-            x < self.Xmin or x > self.Xmax or
-            y < self.Ymin or y > self.Ymax or
-            # Collided with cut-out square
-            ( y > self.WallYmin and y < self.WallYmax and
-              x > self.WallXmin and x < self.WallXmax ) )
-    
-    def has_collided(self, x, y):
-        """UNIMPLEMENTED!"""
-        return False 
-    
-    def has_reached_goal(self, x, y):
-        return x > self.Xmax
-    
-    
+    @staticmethod
+    def Gaussian_disturb(a, amax):
+        p = np.random.rand()
+        if p < 0.68:
+            pass
+        elif p < 0.82:
+            a += 1
+        elif p < 0.96:
+            a-= 1
+        elif a < 0.98:
+            a += 2
+        else:
+            a -= 2
+        return max([a,amax])
+        
     # Gym Functionality:
+    
+    def check_inside_field(self, x, y):
+        return not( x > self.Xmax or x < self.Xmin or
+                    y > self.Ymax or y < self.Ymin)
+    
+    def check_collision_walls(self, xys:set):
+        for (x,y) in xys:
+            self.check_collision_walls_el(x,y)
+    def check_collision_walls_el(self, x, y):
+        return (    y < self.WallYmin or y > self.WallYmax or
+                    x < self.WallXmin or x > self.WallXmax )
+        
+    def in_goal(self, x, y):
+        return (    x > self.GoalXmin and x < self.GoalXmax and
+                    y > self.GoalYmin and y < self.GoalYmax)
     
     def step(self, a):
         
+        # Read action & perform disturbation
         ax, ay = self.action_to_vars(a)
+        ax, ay = self.Gaussian_disturb(ax, self.Amax), self.Gaussian_disturb(ay, self.Amax)
         
-        xindex, yindex = self.x - self.Xnmbr, self.y - self.Ynmbr
+        # Calculate (avg and final) speeds
+        vx_prev, vy_prev = self.vx, self.vy
+        self.vx = min([ self.Vmin, max([ self.Vmax, self.vx + ax ]) ])
+        self.vy = min([ self.Vmin, max([ self.Vmax, self.vy + ay ]) ])
+        dx, dy = (vx_prev + self.vx) / 2, (vy_prev + self.vy) / 2
         
-        # System dynamics with bounds
-        self.vx +=  ax + self.DisturbanceArrayX[xindex, yindex]
-        self.vx  = np.min(self.VXmax, np.max(self.VXmin, self.vx))
-        self.vy +=  ay + self.DisturbanceArrayY[xindex, yindex]
-        self.vy  = np.min(self.VYmax, np.max(self.VYmin, self.vy))
+        # Find gridcells crossed
+        slope = dy/dx
+        crossed_cells = set([])
+        y_last_step = self.y
+        for xi in range(dx):
+            for yi in range(m.ceil(slope)):
+                crossed_cells.add((self.x+xi,m.floor(y_last_step+yi)))
+            y_last_step += slope
         
-        self.x += self.vx + np.floor (ax / 2)
-        self.y += self.vy + np.floor (ay / 2)
-        self.s = self.vars_to_state(self.x, self.y, self.vx, self.vy)
+        # Test if path was valid:
+        self.x, self.y = self.x+dx, self.y+dy
+        if not (self.check_inside_field(self.x, self.y) or
+                self.check_collision_walls(crossed_cells)):
+            return 0, 0, True, {}
         
-        # Check if out-of-bounds:
-        done = False
-        reward = 0
-        if self.has_reached_goal(self.x,self.y):
-            done = True
-            reward = 1
-            self.s = 0
+        # Test if in goal area:
+        if self.in_goal(self.x, self.y):
+            return 0, 1, True, {}
         
-        elif self.out_of_bounds(self.x, self.y) or self.has_collided(self.x, self.y, self.vx, self.vy):
-            done = True
-            self.s = 0
-        
-        return (self.s, reward, done, {} )
+        return self.get_state(), 0, False, {}
         
     def reset(self):
         self.s = self.s_init
         self.x, self.y, self.vx, self.vy = self.state_to_vars(self.s_init)
         
     def getname(self):
-        return "Drone_{}".format(self.disturbance_name)
+        return "Drone"
+    
+env = DroneInCorridor()
