@@ -85,6 +85,7 @@ parser.add_argument('-env_var_plan'     , default = 0,                  help='En
 parser.add_argument('-alpha_measure'    , default = 0,                  help='Risk-sensitivity factor as used for measuring by Control-Robust ATM. Negative values are optimistic, 0 means alpha_plan is copied.')
 parser.add_argument('-env_var_measure'  , default = 0,                  help='Env variant used for measurements. Leave as 0 for same as real one.')
 parser.add_argument('-alpha_real'       , default = 1,                  help='Risk-sensitivity factor as run on. Negative values are best-cases.')
+parser.add_argument('-beta'             , default = 0,                  help='Factor of randomising real env from RMDP version.' )
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:
@@ -103,7 +104,7 @@ remake_env_opt   = True
 if args.env_remake in  ["False", "false"]:
         remake_env_opt = False
 
-
+beta             = float(args.beta)
 alpha_real       = float(args.alpha_real)
 alpha_plan       = float(args.alpha_plan)
 alpha_measure    = float(args.alpha_measure)
@@ -150,6 +151,8 @@ env_postname_measure =  "_a" + float_to_str(alpha_measure)
 env_fullname_run:str
         
 env_postname_run = "_r" + float_to_str(alpha_real)
+if beta != 0:
+        env_postname_run += "_b" + float_to_str(beta)
 if env_variant_plan != env_variant or env_name == "uMV":
         env_postname_run += "_pvar" + float_to_str(float(env_variant_plan))
 env_postname_run += "_p" + float_to_str(alpha_plan)
@@ -306,10 +309,11 @@ def get_env(seed = None, get_base = False, variant=None):
                 return
                 
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
-        args.m_cost = MeasureCost 
-                     
-        if alpha_real != 1 and not get_base:
+        args.m_cost = MeasureCost          
+        if (alpha_real != 1) and not get_base:
                 env_explicit = get_explicit_env(ENV, env_folder_name, env_postname_real, alpha_real)
+                if beta > 0:
+                        env_explicit.randomize(beta)
                 P, _Q, R = env_explicit.get_robust_tables()
                 ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, ENV.getname(), has_terminal_state, max_steps)
         
@@ -338,10 +342,10 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
                 except FileNotFoundError:
                         base_env = AM_Environment_Explicit()
-                        base_env.learn_model_AMEnv(ENV)
+                        base_env.learn_model_AMEnv(ENV, df=0.95)
                         base_env.export_model(ENV.getname(), env_folder_name)
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
-                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.90)
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95)
                 env_explicit.export_model( env_tag, env_folder_name )
         return env_explicit
 

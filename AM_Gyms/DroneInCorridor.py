@@ -9,59 +9,43 @@ class DroneInCorridor(Env):
     def __init__(self):
         
         # Positions
-        self.Xmin, self.Xmax = 0, 30
-        self.Ymin, self.Ymax = 0, 30
+        self.Xmin, self.Xmax = 0, 15
+        self.Ymin, self.Ymax = 0, 15
         self.Xnmbr = self.Xmax - self.Xmin + 1
         self.Ynmbr = self.Ymax - self.Ymin + 1
         
         # Speeds
-        self.Vmin, self.Vmax = -5, 5
+        self.Vmin, self.Vmax = -3, 3
         self.Vnmbr = self.Vmax - self.Vmin + 1
         
         # Accelarations
-        self.Amin, self.Amax = -2, 2
+        self.Amin, self.Amax = -1, 1
         self.Anmbr = self.Amax - self.Amin + 1
         
         # Walls
-        self.WallXmin, self.WallXmax = 0,  20
-        self.WallYmin, self.WallYmax = 10, 30
+        self.WallXmin, self.WallXmax = 0,  5
+        self.WallYmin, self.WallYmax = 5, 15
         
         # Goal area
-        self.GoalXmin, self.GoalXmax = 20, 30
-        self.GoalYmin, self.GoalYmax = 30, np.inf
+        self.GoalXmin, self.GoalXmax = 10, 15
+        self.GoalYmin, self.GoalYmax = 13, np.inf
         
-        self.s_init = 0
+        self.s_init = self.vars_to_state(0,0,0,0)
         self.reset() #sets s and other variables.  
     
     # Functions for going to/from (1D) actions/states to (2/4D) variables
     def get_state(self):
         return self.vars_to_state(self.x, self.y, self.vx, self.vy)
-    
-    def gerenic_index_to_position(index, dimensions, mins):
-        """Given an index and hyperrectangle dimensions, returns the corresponding position"""
-        position = []
-        for i in range(len(dimensions)):
-            size = dimensions[i][1] - dimensions[i][0]
-            pos = (index // size ** i) % size + dimensions[i][0]
-            position.append(pos - mins[i])
-        return tuple(position)
-    def generic_position_to_index(position, dimensions, mins):
-        """Given a position and hyperrectangle dimensions, returns the corresponding index"""
-        index = 0
-        for i in range(len(position)):
-            size = dimensions[i][1] - dimensions[i][0]
-            index += (position[i] + mins[i] - dimensions[i][0]) * (size ** i)
-        return index
         
-    def vars_to_state(self, x, y, vx, vy):
+    def vars_to_state(self, x, y, vx, vy) -> int:
         """Given state variables, returns 1D state"""
         x, y, vx, vy = x - self.Xmin, y - self.Ymin, vx - self.Vmin, vy - self.Vmin
         if y<self.WallYmin:
-              return vx + self.Vnmbr * (vy + self.Vnmbr * (x + self.Xnmbr * (y)))
+              return int(vx + self.Vnmbr * (vy + self.Vnmbr * (x + self.Xnmbr * (y))))
         else:
             nmbr_previous_states = self.Vnmbr + self.Vnmbr * (self.Vnmbr + self.Vnmbr * (self.Xnmbr + self.Xnmbr * self.WallYmin) )
             this_i = vx + self.Vnmbr * (vy + self.Vnmbr * ( (y-self.WallYmin) + self.Ynmbr * (x-self.WallXmax)))
-            return nmbr_previous_states + this_i
+            return int(nmbr_previous_states + this_i)
     
     def state_to_vars(self, state):
         """Given 1D state, returns state variables (x, y, vx, vy)"""
@@ -83,15 +67,15 @@ class DroneInCorridor(Env):
     
     def vars_to_action(self, ax, ay):
         """Given action variables, returns 1D action"""
-        ax, ay = ax + self.AXmin, ay + self.AYmin
-        return ax + self.AXnmbr * ay
+        ax, ay = ax - self.Amin, ay - self.Amin
+        return ax + self.Anmbr * ay
     
     def action_to_vars(self, a):
         """Given action, returns action variables (ax, ay)"""
-        ax = a % self.AXnmbr
-        ay = ( (a - ax) / self.AXnmbr ) % self.AYnmbr
+        ay = a // self.Anmbr
+        ax = a % self.Anmbr
         
-        return (ax - self.AXmin, ay - self.AYmin)
+        return (ax + self.Amin, ay + self.Amin)
     
     @staticmethod
     def Gaussian_disturb(a, amax):
@@ -102,24 +86,29 @@ class DroneInCorridor(Env):
             a += 1
         elif p < 0.96:
             a-= 1
-        elif a < 0.98:
-            a += 2
-        else:
-            a -= 2
-        return max([a,amax])
+        # elif a < 0.98:
+        #     a += 2
+        # else:
+        #     a -= 2
+        if abs(a)> amax:
+            a = amax * np.sign(a)
+        return a
         
     # Gym Functionality:
     
-    def check_inside_field(self, x, y):
-        return not( x > self.Xmax or x < self.Xmin or
-                    y > self.Ymax or y < self.Ymin)
+    def in_field(self, x, y):
+        return (    x <= self.Xmax and x >= self.Xmin and
+                    y <= self.Ymax and y >= self.Ymin)
     
-    def check_collision_walls(self, xys:set):
+    def in_wall(self, xys:set):
         for (x,y) in xys:
-            self.check_collision_walls_el(x,y)
-    def check_collision_walls_el(self, x, y):
-        return (    y < self.WallYmin or y > self.WallYmax or
-                    x < self.WallXmin or x > self.WallXmax )
+            if self.in_wall_el(x,y):
+                return True
+        return False
+            
+    def in_wall_el(self, x, y):
+        return (    (y >= self.WallYmin and y <= self.WallYmax)
+                and (x >= self.WallXmin and x <= self.WallXmax) )
         
     def in_goal(self, x, y):
         return (    x > self.GoalXmin and x < self.GoalXmax and
@@ -133,30 +122,48 @@ class DroneInCorridor(Env):
         
         # Calculate (avg and final) speeds
         vx_prev, vy_prev = self.vx, self.vy
-        self.vx = min([ self.Vmin, max([ self.Vmax, self.vx + ax ]) ])
-        self.vy = min([ self.Vmin, max([ self.Vmax, self.vy + ay ]) ])
-        dx, dy = (vx_prev + self.vx) / 2, (vy_prev + self.vy) / 2
+        self.vx = max([ self.Vmin, min([ self.Vmax, self.vx + ax ]) ])
+        self.vy = max([ self.Vmin, min([ self.Vmax, self.vy + ay ]) ])
+        dx, dy = round((vx_prev + self.vx) / 2), round((vy_prev + self.vy) / 2)
+
+        # Check if endpoint within env
+        if (not self.in_field(self.x+dx, self.y+dy)):
+            print(f"done! (x={self.x}, y={self.y})")
+            return 0, 0, True, {}
         
         # Find gridcells crossed
-        slope = dy/dx
-        crossed_cells = set([])
-        y_last_step = self.y
-        for xi in range(dx):
-            for yi in range(m.ceil(slope)):
-                crossed_cells.add((self.x+xi,m.floor(y_last_step+yi)))
-            y_last_step += slope
+        # Note: we just assume any obstacle in the box from start to end would block us.
+        # To make this more realistic, we could maybe use the slope to find what gridcels are crossed
+        # if we go in a straight path and use that, but I had problems implementing that correctly...
         
+        if dx >= 0:
+            xs = np.arange(start=self.x, step=1, stop=self.x+dx+1)
+        else: 
+            xs = np.arange(start=self.x+dx, step=1, stop=self.x+1)
+            
+        if dy >= 0:
+            ys = np.arange(start=self.y, step=1, stop=self.y+dy+1)
+        else: 
+            ys = np.arange(start=self.y+dy, step=1, stop=self.y+1)
+        
+        crossed_cells = []
+        for xi in xs:
+            for yi in ys:
+                crossed_cells.append((xi, yi))
+
         # Test if path was valid:
-        self.x, self.y = self.x+dx, self.y+dy
-        if not (self.check_inside_field(self.x, self.y) or
-                self.check_collision_walls(crossed_cells)):
+        if  ( self.in_wall(crossed_cells)):
+            print(f"done! (x={self.x}, y={self.y})")
             return 0, 0, True, {}
         
         # Test if in goal area:
-        if self.in_goal(self.x, self.y):
+        elif self.in_goal(self.x+dx, self.y+dy):
+            print(f"done (goal achieved)! (x={self.x}, y={self.y})")
             return 0, 1, True, {}
         
-        return self.get_state(), 0, False, {}
+        else:
+            self.x, self.y = self.x+dx, self.y+dy
+            return self.get_state(), 0, False, {}
         
     def reset(self):
         self.s = self.s_init
@@ -164,5 +171,4 @@ class DroneInCorridor(Env):
         
     def getname(self):
         return "Drone"
-    
-env = DroneInCorridor()
+

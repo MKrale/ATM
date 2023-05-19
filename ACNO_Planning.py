@@ -62,7 +62,7 @@ class ACNO_Planner():
         
         while not done:
 
-            nextBelief = self.compute_next_belief   (currentBelief, currentAction)
+            nextBelief = self.compute_next_belief (currentBelief, currentAction)
             if currentBelief == pytest.approx(nextBelief, rtol, atol):
                 if len(currentBelief) == 1:
                     currentAction = np.random.choice(self.ActionSize)
@@ -136,11 +136,55 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
         self.Pmeasure, self.Qmeasure, _R = MeasureEnv.get_robust_tables()
         self.df = df
         self.epsilon_measuring = super().epsilon_measuring
+        self.b_measure:dict = {}; self.b_measure_next:dict = {}
     
-    def determine_measurement(self, b, a, b_next, a_next):
-        b_next_real = next_belief(b,a,self.Pmeasure)
+    def run_episode(self):
+        
+        self.env.reset()
+        currentBelief, nextBelief = {0:1}, {}
+        currentMeasureBelief, nextMeasureBelief = {0:1}, {}
+        nextAction:int; currentAction:int; currentMeasuring:bool
+        done = False
+        total_reward, total_steps, total_measures = 0, 0, 0
+        
+        currentAction = self.determine_action(currentBelief)
+        
+        while not done:
+
+            nextBelief = self.compute_next_belief (currentBelief, currentAction)
+            nextMeasureBelief = self.compute_next_measure_belief(currentMeasureBelief, currentAction)
+            if currentBelief == pytest.approx(nextBelief, rtol, atol):
+                if len(currentBelief) == 1:
+                    currentAction = np.random.choice(self.ActionSize)
+                currentMeasuring = True
+            else:
+                nextAction = self.determine_action      (nextBelief)
+                currentMeasuring  = self.determine_measurement (currentBelief, currentAction, currentMeasureBelief, nextBelief, nextAction, nextMeasureBelief) 
+            
+            reward, done = self.execute_action(currentAction, currentBelief, currentMeasuring)
+            if currentMeasuring or np.random.random() < self.epsilon_measuring:
+                nextBelief, cost = self.measure()
+                nextMeasureBelief = nextBelief
+                nextAction = self.determine_action (nextBelief)
+                total_measures += 1
+            else:
+                cost = 0
+            total_reward += reward - cost
+            total_steps += 1
+            currentBelief, currentAction, currentMeasureBelief = nextBelief, nextAction, nextMeasureBelief
+            # print(currentBelief, currentAction, currentMeasuring, reward)
+        
+        return total_reward, total_steps, total_measures
+    
+    def compute_next_measure_belief(self, b, a):
+        return next_belief(b,a,self.Pmeasure)
+        
+    
+    def determine_measurement(self, b, a, bm, b_next:None, a_next:None, bm_next:None):
+        if b_next is None or a_next is None or bm_next is None:
+            print("ERROR: determine_measurement not fully implemented for non-given next beliefs/actions")
         #NOTE: since this is already 'less conservative' then the robust belief update, even control-robust ATM with P_Rmdp has an effect!
-        return (measuring_value(b_next_real, a_next, self.Qmeasure, self.Q) > self.cost
+        return (measuring_value(bm_next, a_next, self.Qmeasure, self.Q) > self.cost
                 or  measuring_value(b_next, a_next, self.Q) > self.cost )
 
 

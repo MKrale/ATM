@@ -228,6 +228,32 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
     def get_robust_tables(self):
         "returns Pr, Qr, R for robust MDP"
         return self.PrMdp, self.QrMdp, self.R
+    
+    def randomize(self, beta, nmbr_tries = 25):
+        """Randomizes PrMdp by shifting all probs by at p ~ [-beta, beta]."""
+        for s in range(self.StateSize):
+            for a in range(self.ActionSize):
+                valid=False
+                l = len(self.PrMdp[s][a])
+                if l > 1:
+                    i=0
+                    while not valid and i<nmbr_tries:
+                        valid=True
+                        shift = np.random.random(size=len(self.PrMdp[s][a])-1)
+                        shift = list(2*beta*shift - beta)
+                        shift.append(-sum(shift))
+                        for (i,snext) in enumerate(self.PrMdp[s][a].keys()):
+                            valid = valid and ( self.PrMdp[s][a][snext] + shift[i] < self.Pmax[s][a][snext] and
+                                                self.PrMdp[s][a][snext] + shift[i] > self.Pmin[s][a][snext])
+                        if i>= 25:
+                            shift = np.zeros(l)
+                            print(f"WARNING: randomisation did not work for state-action pair {s},{a}")
+                    
+                    for (i,snext) in enumerate(self.PrMdp[s][a].keys()):
+                        self.PrMdp[s][a][snext] += shift[i]
+
+                    
+                
 
 
 class OptAM_Environment_Explicit(RAM_Environment_Explicit):
@@ -254,25 +280,3 @@ def make_negative_recursively(dict:dict, depth:int):
 class IntKeyDict(dict):
     def __setitem__(self, key, value):
         super().__setitem__(int(key), value)
-
-# Code for learning models:
-
-# directoryPath = os.path.join(os.getcwd(), "AM_Gyms", "Learned_Models")
-# alpha = 0.3
-
-# from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
-# from AM_Gyms.Loss_Env import Measure_Loss_Env
-# # from MachineMaintenance import Machine_Maintenance_Env
-
-# env_names           = ["Machine_Maintenance_a03", "Loss_a03"]
-
-# envs                = [Machine_Maintenance_Env(N=8), Measure_Loss_Env()]
-# env_stateSize       = [11,4]
-# env_actionSize      = [2,2]
-# env_sInit           = [0,0]
-
-# for (i,env) in enumerate(envs):
-#     AM_env = AM_ENV(env, env_stateSize[i], env_actionSize[i], 0, env_sInit[i])
-#     modelLearner = RAM_Environment_tables()
-#     modelLearner.learn_model_AMEnv_alpha(AM_env, alpha)
-#     modelLearner.export_model(env_names[i], directoryPath)
