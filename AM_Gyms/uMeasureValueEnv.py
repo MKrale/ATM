@@ -16,7 +16,7 @@ class uMV_Env(gym.Env):
     This environment is described in the report Merlijn Krale (link here!), 
     and is used to test Active-Measuring algorithms.
     """
-    def __init__(self, p=0.05, rbig = 1, rsmall = 0.1):
+    def __init__(self, p=0.05, rbig = 1, rsmall = 0.0):
 
         self.p = p
         self.rbig = rbig

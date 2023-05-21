@@ -48,7 +48,7 @@ class QBasic:
         action = self.pick_action(s)
         #print(s,action)
 
-        (reward, done) = self.env.step(action, s)
+        (reward, done) = self.env.step(action)
         (obs, cost) = self.env.measure()
         
         if self.includeCost:

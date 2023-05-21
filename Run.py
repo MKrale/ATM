@@ -45,6 +45,7 @@ from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit, OptAM_Environment_Explicit
 from AM_Gyms.uMeasureValueEnv import uMV_Env
+from AM_Gyms.uMV2 import uMV2_Env
 from AM_Gyms.DroneInCorridor import DroneInCorridor
 
 # Environment wrappers
@@ -199,9 +200,17 @@ def get_env(seed = None, get_base = False, variant=None):
                         MeasureCost = 0.1
 
         if env_name == "uMV":
-                if variant == 'None': p = 0.5
-                else:                     p = float(variant)
+                if variant == 'None':           p = 0.5
+                else:                           p = float(variant)
                 env = uMV_Env(p=p)
+                StateSize, ActionSize, s_init = 4, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.2
+        
+        elif env_name == "uMV2":
+                if variant == 'None':           rsmall = 0.8
+                else:                           rsmall = float(variant)
+                env = uMV2_Env(rsmall=rsmall)
                 StateSize, ActionSize, s_init = 4, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.2
@@ -347,6 +356,7 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
                 env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95)
                 env_explicit.export_model( env_tag, env_folder_name )
+        env_explicit.MeasureCost = MeasureCost  # This is slightly hacky, cost probably shouldn't be part of the explict env or always be set manually...
         return env_explicit
 
 # Both final names and previous/working names are implemented here

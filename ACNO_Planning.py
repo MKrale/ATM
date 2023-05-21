@@ -2,6 +2,7 @@ import numpy as np
 import math as m
 import time
 import pytest
+import cvxpy as cp
 
 
 from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit
@@ -160,9 +161,9 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
             else:
                 nextAction = self.determine_action      (nextBelief)
                 currentMeasuring  = self.determine_measurement (currentBelief, currentAction, currentMeasureBelief, nextBelief, nextAction, nextMeasureBelief) 
-            
+                    
             reward, done = self.execute_action(currentAction, currentBelief, currentMeasuring)
-            if currentMeasuring or np.random.random() < self.epsilon_measuring:
+            if currentMeasuring: #or np.random.random() < self.epsilon_measuring:
                 nextBelief, cost = self.measure()
                 nextMeasureBelief = nextBelief
                 nextAction = self.determine_action (nextBelief)
@@ -172,8 +173,6 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
             total_reward += reward - cost
             total_steps += 1
             currentBelief, currentAction, currentMeasureBelief = nextBelief, nextAction, nextMeasureBelief
-            # print(currentBelief, currentAction, currentMeasuring, reward)
-        
         return total_reward, total_steps, total_measures
     
     def compute_next_measure_belief(self, b, a):
@@ -369,47 +368,55 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
     state_indexes = np.unique(np.append(relevant_current_states, relevant_next_states))
     statesize, actionsize = np.size(state_indexes), np.shape(Q)[1]
     
-    b_array, bnext, bnext_min, bnext_max = get_Ps_for_belief(state_indexes, b, a, Pguess, Pmin, Pmax)
-    # print(bnext, bnext_min, bnext_max)
-    Q_small = np.max(Q[state_indexes], axis = 1)
-    # print(Q_small)
+    # b_array, bnext, bnext_min, bnext_max = get_Ps_for_belief(state_indexes, b, a, Pguess, Pmin, Pmax)
     
-    bnext_robust = np.array(ModelLearner_Robust.custom_delta_minimize(bnext_min, bnext_max, bnext, Q_small))
-    bnext_robust = b_array_to_dict(bnext_robust, state_indexes)
-    return bnext_robust
+    # Q_next = np.inf
+    # for anext in actionsize:
+    
+    #     Q_small = Q[state_indexes,anext]
+    #     bnext_robust = np.array(ModelLearner_Robust.custom_delta_minimize(bnext_min, bnext_max, bnext, Q_small))
+    #     print(bnext_robust)
+    #     bnext_robust = b_array_to_dict(bnext_robust, state_indexes)
+        
+    #     this_Q_next = 0
+    #     for (state, prob) in bnext_robust.items():
+    #         Q_next += prob*np.max(Q[state], axis=1)
+    #     if this_Q_next < 
+            
+    # return bnext_robust
     
     
-    # Pmin_small   = get_partial_P(state_indexes, Pmin, a, flat=False)
-    # Pmax_small   = get_partial_P(state_indexes, Pmax, a, flat=False)
-    # Pguess_small = get_partial_P(state_indexes, Pguess, a, flat=False)
-    # Q_small = Q[state_indexes]
-    # b_array = get_partial_b(state_indexes, b)
+    Pmin_small   = get_partial_P(state_indexes, Pmin, a, flat=False)
+    Pmax_small   = get_partial_P(state_indexes, Pmax, a, flat=False)
+    Pguess_small = get_partial_P(state_indexes, Pguess, a, flat=False)
+    Q_small = Q[state_indexes]
+    b_array = get_partial_b(state_indexes, b)
         
     # Define as Convex problem & solve (slow...)
     
-    # P = cp.Variable( (statesize,statesize) )
-    # bnext = cp.Variable(statesize)
+    P = cp.Variable( (statesize,statesize) )
+    bnext = cp.Variable(statesize)
     
-    # Qmax = cp.Variable()
-    # objective = cp.Minimize(Qmax)
-    # constraints = [bnext == b_array @ P] # @ ?
-    # for a in range(actionsize):
-    #     constraints.append(Qmax >= bnext @ Q_small[:,a])
-    # for (index, state) in enumerate(state_indexes):
-    #     if state in b:
-    #         constraints.append(cp.sum(P[index]) == 1)
-    #         constraints.append(P[index] >= Pmin_small[index])
-    #         constraints.append(P[index] <= Pmax_small[index])
+    Qmax = cp.Variable()
+    objective = cp.Minimize(Qmax)
+    constraints = [bnext == b_array @ P] # @ ?
+    for a in range(actionsize):
+        constraints.append(Qmax >= bnext @ Q_small[:,a])
+    for (index, state) in enumerate(state_indexes):
+        if state in b:
+            constraints.append(cp.sum(P[index]) == 1)
+            constraints.append(P[index] >= Pmin_small[index])
+            constraints.append(P[index] <= Pmax_small[index])
     
-    # problem = cp.Problem(objective, constraints)
-    # #problem.solve(solver=cp.GLPK)
-    # problem.solve(solver=cp.GLOP)
-    # if bnext.value is None:
-    #     print("Error: solver failed!: {}".format(problem.status))
-    #     return next_belief(b,a,Pguess)
+    problem = cp.Problem(objective, constraints)
+    #problem.solve(solver=cp.GLPK)
+    problem.solve(solver=cp.GLOP)
+    if bnext.value is None:
+        print("Error: solver failed!: {}".format(problem.status))
+        return next_belief(b,a,Pguess)
     
 
-    # b_worst_dict = b_array_to_dict(bnext.value, state_indexes)
+    b_worst_dict = b_array_to_dict(bnext.value, state_indexes)
     return b_worst_dict
     
     
