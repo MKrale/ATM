@@ -309,7 +309,7 @@ def get_env(seed = None, get_base = False, variant=None):
         
         elif env_name == "Drone":
                 env = DroneInCorridor()
-                StateSize, ActionSize, s_init = 81_444, 25, 0
+                StateSize, ActionSize, s_init = env.get_size()
                 if MeasureCost == -1:
                         MeasureCost = 0.01
         
@@ -319,7 +319,7 @@ def get_env(seed = None, get_base = False, variant=None):
                 
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost          
-        if (alpha_real != 1) and not get_base:
+        if (alpha_real != 10) and not get_base:
                 env_explicit = get_explicit_env(ENV, env_folder_name, env_postname_real, alpha_real)
                 if beta > 0:
                         env_explicit.randomize(beta)
@@ -351,10 +351,10 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
                 except FileNotFoundError:
                         base_env = AM_Environment_Explicit()
-                        base_env.learn_model_AMEnv(ENV, df=0.95)
+                        base_env.learn_model_AMEnv(ENV, df=0.95, N=50)
                         base_env.export_model(ENV.getname(), env_folder_name)
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
-                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95)
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95, N_robust = 50)
                 env_explicit.export_model( env_tag, env_folder_name )
         env_explicit.MeasureCost = MeasureCost  # This is slightly hacky, cost probably shouldn't be part of the explict env or always be set manually...
         return env_explicit

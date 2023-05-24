@@ -66,18 +66,18 @@ class QBasic:
         self.env.reset()
         
         while not done:
-            
             obs, reward, done = self.run_step(s)
             totalReward += reward
             steps += 1
             s = obs
         return totalReward, steps
         
-    def run(self, episodes, logging = False):
+    def run(self, episodes, logging = True):
+        logging = True
         rewards, steps = np.zeros(episodes), np.zeros(episodes)
         for i in range(episodes):
             rewards[i], steps[i] = self.run_episode()
-            if logging and i%100 == 0:
+            if logging and i%1000 == 0:
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {})".format( 
                         i, episodes, np.average(rewards[(i-100):i]), np.average(steps[(i-100):i]) ) )
         return np.sum(rewards), rewards, steps, np.ones(episodes)

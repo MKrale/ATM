@@ -7,7 +7,7 @@ import numpy as np
 class ModelLearner():
     
     
-    def __init__(self, env:AM_ENV, df = 0.90, record_done = None):
+    def __init__(self, env:AM_ENV, df = 0.95, record_done = None):
          
          self.env = env
          self.StateSize, self.ActionSize, self.cost, self.s_init = env.get_vars()
@@ -53,17 +53,23 @@ class ModelLearner():
         
         i = 0
         final_updates = 100
-        
+        batch_size = 2500
+        nmbr_batches = 0
+        min_visists = 5
         done = False
         if logging:
             print("Learning MDP-model started:")
         while not done :
-            i += 1
-            _r, _s, _m = self.run_episode()
+            nmbr_batches += 1
+            s_avg = 0
+            for i in range(batch_size):
+                _r, s, _m = self.run_episode()
+                s_avg += s/batch_size
             counter_nonzero = np.nonzero(self.counter)
-            done = np.min(self.counter[counter_nonzero]) > min_visits or i > max_eps
-            if logging and i%1000 == 0:
-                print("{} episodes completed!".format(i))
+            done = np.min(self.counter[counter_nonzero]) > min_visits or nmbr_batches*batch_size > max_eps
+            print(np.argmin(self.counter[counter_nonzero]), np.size(self.counter[counter_nonzero]))
+            if logging:
+                print("{} episodes completed (with {} avg steps)".format(batch_size*nmbr_batches, s_avg))
         if self.record_done:
             self.insert_done_transitions()
         print("Learning completed in {} episodes!\n\n".format(i))
@@ -71,9 +77,26 @@ class ModelLearner():
         
         for i in range(final_updates):
             self.update_model()
+            
+    def run_setStates(self, SA_updates = 100, logging = True):
         
+        for i in range(SA_updates):
+            
+            sorted_states = np.argsort(self.Q_max)
+            for s in sorted_states:
+                for a in range(self.ActionSize):
+                    # Set env to state, take action & update model.
+                    self.env.set_state(s)
+                    reward, done = self.env.step(a)
+                    if done:
+                        snext = self.doneState
+                    else:
+                        (snext,_cost) = self.env.measure()
+                        
+                    self.update_counters(s, a, snext, reward)
+                    self.update_model([(s,a)])
+            print(i)
         
-    
     def run_episode(self):
         self.env.reset()
         done = False
@@ -106,35 +129,44 @@ class ModelLearner():
             self.R_counter[s][a][snext] += reward
         else:
             self.P_counter[s][a][snext] = 1
-            self.P[s][a][snext] = 0
+            self.P[s][a][snext] = 1
             self.R_counter[s][a][snext] = reward
-            self.R[s][a][snext] = 0
+            self.R[s][a][snext] = 1
         
     
-    def update_model(self, state_action_pairs = None, full_update = False):
+    def update_model(self, state_action_pairs, include_learning = True):
         
-        if full_update:
-            state_action_pairs = np.meshgrid(np.arange(self.StateSize), np.arange(self.ActionSize))
         
         if state_action_pairs is not None:
             for (s,a) in state_action_pairs:
                 
                 Psi, Psi_learning, self.R_expected[s,a] = 0, 0, 0
                 self.R_expected[s,a]
-                Q_next = 0
+                Q_next, Psi_learning_next = 0, 0
                 for (s_next, _p) in self.P[s][a].items():
                     self.R[s][a][s_next] = self.R_counter[s][a][s_next] / self.counter[s,a]
                     self.P[s][a][s_next] = self.P_counter[s][a][s_next] / self.counter[s,a]
                     self.R[s][a][s_next] = self.R_counter[s][a][s_next] / self.P_counter[s][a][s_next]
                     
                     Q_next += self.P[s][a][s_next] * (self.R[s][a][s_next] + self.df * self.Q_max[s_next])
-                    Psi_learning += self.P[s][a][s_next] * self.Q_learning_max[s_next]
+                    Psi_learning_next += self.P[s][a][s_next] * self.Q_learning_max[s_next]
                 
+                # Update Q-values
+                Q_prev, Q_learning_prev = self.Q[s,a], self.Q_learning[s,a]
                 self.Q[s,a] = Q_next
                 self.Q_learning[s,a] = 1/self.counter[s,a] + self.df_learning * Psi_learning
                 
-                self.Q_max[s] = np.max(self.Q[s])
-                self.Q_learning_max[s] = np.max(self.Q_learning[s])
+                # update Qmax-values (without iteration over actions)
+                if Q_prev == self.Q_max[s] and Q_prev < Q_next:
+                    self.Q_max[s] = np.max(self.Q[s])
+                else:
+                    self.Q_max[s] = max([self.Q_max[s], Q_next])
+                
+                if include_learning and Q_learning_prev == self.Q_learning_max[s] and Q_learning_prev < self.Q_learning[s,a] :
+                    self.Q_learning_max[s] = np.max(self.Q_learning[s])
+                else:
+                    self.Q_learning_max[s] = max([self.Q_learning_max[s], self.Q_learning[s,a]])
+                    
     
     def insert_done_transitions(self):
 

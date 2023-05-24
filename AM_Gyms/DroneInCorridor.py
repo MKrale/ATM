@@ -6,7 +6,7 @@ class DroneInCorridor(Env):
     """Custom environment describing a drone flying through a corridor, with disturbance
     in the system dynamics representing wind."""
     
-    def __init__(self):
+    def __init__(self,):
         
         # Positions
         self.Xmin, self.Xmax = 0, 15
@@ -23,14 +23,14 @@ class DroneInCorridor(Env):
         self.Anmbr = self.Amax - self.Amin + 1
         
         # Walls
-        self.WallXmin, self.WallXmax = 0,  5
-        self.WallYmin, self.WallYmax = 5, 15
+        self.WallXmin, self.WallXmax = 6, np.infty
+        self.WallYmin, self.WallYmax = 6, np.infty
         
         # Goal area
-        self.GoalXmin, self.GoalXmax = 10, 15
+        self.GoalXmin, self.GoalXmax = 0, 5
         self.GoalYmin, self.GoalYmax = 13, np.inf
         
-        self.s_init = self.vars_to_state(0,0,0,0)
+        self.s_init = self.vars_to_state(self.Xmax,0,0,0)
         self.reset() #sets s and other variables.  
     
     # Functions for going to/from (1D) actions/states to (2/4D) variables
@@ -43,27 +43,30 @@ class DroneInCorridor(Env):
         if y<self.WallYmin:
               return int(vx + self.Vnmbr * (vy + self.Vnmbr * (x + self.Xnmbr * (y))))
         else:
-            nmbr_previous_states = self.Vnmbr + self.Vnmbr * (self.Vnmbr + self.Vnmbr * (self.Xnmbr + self.Xnmbr * self.WallYmin) )
-            this_i = vx + self.Vnmbr * (vy + self.Vnmbr * ( (y-self.WallYmin) + self.Ynmbr * (x-self.WallXmax)))
-            return int(nmbr_previous_states + this_i)
+            states_first_rectangle = (self.Vnmbr-1) + self.Vnmbr * ((self.Vnmbr-1) + self.Vnmbr * ((self.Xnmbr-1) + self.Xnmbr * (self.WallYmin-1)) )
+            y -= (self.WallYmin)
+            this_i = int(vx + self.Vnmbr * (vy + self.Vnmbr * (x + (self.WallXmin) * (y))))
+            return int(states_first_rectangle + this_i)
     
     def state_to_vars(self, state):
         """Given 1D state, returns state variables (x, y, vx, vy)"""
         # Written by chatgpt, not tested but I trust our AI overlords!
-        nmbr_previous_states = self.Vnmbr + self.Vnmbr * (self.Vnmbr + self.Vnmbr * (self.Xnmbr + self.Xnmbr * self.WallYmin))
-        if state < nmbr_previous_states:
-            y =   state                                           // (self.Xnmbr * self.Vnmbr * self.Vnmbr)
-            x =  (state % (self.Xnmbr * self.Vnmbr * self.Vnmbr)) // (self.Vnmbr * self.Vnmbr)
-            vy = (state % (self.Vnmbr * self.Vnmbr))              //  self.Vnmbr
-            vx = (state % (self.Vnmbr))                           
-            return x + self.Xmin, y + self.Ymin, vx + self.Vmin, vy + self.Vmin
+        states_first_rectangle = (self.Vnmbr-1) + self.Vnmbr * ((self.Vnmbr-1) + self.Vnmbr * ((self.Xnmbr-1) + self.Xnmbr * (self.WallYmin-1)) )
+        if state <= states_first_rectangle:
+            y =   state                                                 // (self.Xnmbr * self.Vnmbr * self.Vnmbr)
+            x =  (state % (self.Xnmbr * self.Vnmbr * self.Vnmbr))       // (self.Vnmbr * self.Vnmbr)
+            vy = (state % (self.Vnmbr * self.Vnmbr))                    //  self.Vnmbr
+            vx = (state % (self.Vnmbr))
+        
         else:
-            state = state-nmbr_previous_states
-            x =   state                                           // (self.Xnmbr * self.Vnmbr * self.Vnmbr)
-            y =  (state % (self.Xnmbr * self.Vnmbr * self.Vnmbr)) // (self.Vnmbr * self.Vnmbr)
-            vy = (state % (self.Vnmbr * self.Vnmbr))              //  self.Vnmbr
-            vx = (state % (self.Vnmbr))  
-            return x + self.Xmin + self.WallXmax, y + self.Ymin + self.WallYmin, vx + self.Vmin, vy + self.Vmin
+            state -= states_first_rectangle
+            y =   state                                                 // (self.WallXmin * self.Vnmbr * self.Vnmbr)
+            x =  (state % (self.WallXmin * self.Vnmbr * self.Vnmbr))    // (self.Vnmbr * self.Vnmbr)
+            vy = (state % (self.Vnmbr * self.Vnmbr))                    //  self.Vnmbr
+            vx = (state % (self.Vnmbr))
+            y += (self.WallYmin)                           
+        
+        return x + self.Xmin, y + self.Ymin, vx + self.Vmin, vy + self.Vmin
     
     def vars_to_action(self, ax, ay):
         """Given action variables, returns 1D action"""
@@ -128,7 +131,6 @@ class DroneInCorridor(Env):
 
         # Check if endpoint within env
         if (not self.in_field(self.x+dx, self.y+dy)):
-            print(f"done! (x={self.x}, y={self.y})")
             return 0, 0, True, {}
         
         # Find gridcells crossed
@@ -150,15 +152,13 @@ class DroneInCorridor(Env):
         for xi in xs:
             for yi in ys:
                 crossed_cells.append((xi, yi))
-
+        #print(self.x, self.y, ax, ay, self.vx, self.vy, dx, dy, crossed_cells)
         # Test if path was valid:
         if  ( self.in_wall(crossed_cells)):
-            print(f"done! (x={self.x}, y={self.y})")
             return 0, 0, True, {}
         
         # Test if in goal area:
         elif self.in_goal(self.x+dx, self.y+dy):
-            print(f"done (goal achieved)! (x={self.x}, y={self.y})")
             return 0, 1, True, {}
         
         else:
@@ -171,4 +171,41 @@ class DroneInCorridor(Env):
         
     def getname(self):
         return "Drone"
+    
+    def set_state(self, s):
+        self.s = s
+        self.x, self.y, self.vx, self.vy = self.state_to_vars(s)
+        
+    def get_state_vars(self):
+        return self.x, self.y, self.vx, self.vy
+    
+    def get_size(self):
+        """Returns StateSize, ActionSize, s_init (for Runfile)"""
+        return (self.vars_to_state(self.Xmax, self.Ymax, self.Vmax, self.Vmax)+1000,
+                self.vars_to_action(self.Amax, self.Amax)+1,
+                self.vars_to_state(0,0,0,0))
+        
+
+# env = DroneInCorridor()
+# for i in range(14000):
+#     # print(env.state_to_vars(i))
+#     x,y,vx,vy = env.state_to_vars(i)
+#     if env.vars_to_state(x,y,vx,vy) != i:
+#         print(i, env.vars_to_state(x,y,vx,vy), (x,y,vx,vy))
+
+# print(env.vars_to_state(5,15,3,3))
+# print(env.state_to_vars(8000))
+
+# env.set_state(0)
+# print(env.get_vars())
+# print(env.state_to_vars(0))
+# print(env.action_to_vars(0))
+# print(env.step(0))
+
+
+# print(env.state_to_vars(17))
+# print(env.action_to_vars(1))
+# for i in range(10):
+#     print(env.step(1))
+#     env.set_state(0)
 

@@ -11,7 +11,7 @@ class AM_ENV():
     and adds a seperate observe-function.
     """
 
-    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = 10_000, max_reward = 1):
+    def __init__(self, env, StateSize, ActionSize, MeasureCost, s_init, log_choices = False, max_steps = np.inf, max_reward = 1):
         self.env = env
         self.StateSize = StateSize
         self.ActionSize = ActionSize    # Is there any way to get these two from the env. itself?
@@ -68,6 +68,9 @@ class AM_ENV():
         
     def getname(self):
         return self.env.getname()
+    
+    def set_state(self,s):
+        self.env.set_state(s)
     
     def horizon(self):
         return None

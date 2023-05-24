@@ -29,6 +29,7 @@ class ACNO_Planner():
             self.P, _R, self.Q = tables.get_avg_tables()
         
         self.df          = df
+        
 
     def run(self, eps, logging=False):
         
@@ -71,7 +72,6 @@ class ACNO_Planner():
             else:
                 nextAction = self.determine_action      (nextBelief)
                 currentMeasuring  = self.determine_measurement (currentBelief, currentAction, nextBelief, nextAction) 
-            
             reward, done = self.execute_action(currentAction, currentBelief, currentMeasuring)
             if currentMeasuring or np.random.random() < self.epsilon_measuring:
                 nextBelief, cost = self.measure()
@@ -82,7 +82,7 @@ class ACNO_Planner():
             total_reward += reward - cost
             total_steps += 1
             currentBelief, currentAction = nextBelief, nextAction
-            # print(currentBelief, currentAction, currentMeasuring, reward)
+            #print(currentBelief, currentAction, currentMeasuring, reward)
         
         return total_reward, total_steps, total_measures
     
@@ -118,7 +118,14 @@ class ACNO_Planner_Robust(ACNO_Planner):
         self.P, self.Q, _R =  tables.get_robust_tables()
         self.df         = df
         self.epsilon_measuring = super().epsilon_measuring
+        
+        print(self.s_init)
 
+    def determine_measurement(self, b, a, b_next=None, a_next=None):
+        b_next_measuring = next_belief(b,a, self.P)
+        if a_next is None:
+            a_next = self.determine_action(b_next)
+        return measuring_value(b_next, a_next, self.Q, bm=b_next_measuring) > self.cost
 
     def determine_action(self, b):
         return optimal_action(b, self.Q, None)
@@ -138,6 +145,8 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
         self.df = df
         self.epsilon_measuring = super().epsilon_measuring
         self.b_measure:dict = {}; self.b_measure_next:dict = {}
+        print(self.s_init)
+        print(self.StateSize)
     
     def run_episode(self):
         
@@ -182,9 +191,10 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
     def determine_measurement(self, b, a, bm, b_next:None, a_next:None, bm_next:None):
         if b_next is None or a_next is None or bm_next is None:
             print("ERROR: determine_measurement not fully implemented for non-given next beliefs/actions")
+        bnext_if_measuring = next_belief(b,a,self.P)
         #NOTE: since this is already 'less conservative' then the robust belief update, even control-robust ATM with P_Rmdp has an effect!
-        return (measuring_value(bm_next, a_next, self.Qmeasure, self.Q) > self.cost
-                or  measuring_value(b_next, a_next, self.Q) > self.cost )
+        return (measuring_value(bm_next, a_next, self.Qmeasure, Q_decision=self.Q ) > self.cost     # CR part
+                or  measuring_value(b_next, a_next, self.Q, bm=bnext_if_measuring) > self.cost )    # Regular part
 
 
 # Generalized functions:
@@ -269,16 +279,20 @@ def next_belief(b:dict, a:int, P:dict, min_probability_considered:float = 0.001)
 #     return b_next
     
 
-def measuring_value(b:dict, a_b:int, Q:np.ndarray, Q_decision = None):
+def measuring_value(b:dict, a_b:int, Q:np.ndarray, bm:dict = None, Q_decision = None):
     """Returns the measuring value, assuming for future states action are chosen according to Q_decision, but real values are given by Q"""
     if Q_decision is None:
         Q_decision = Q
+    if bm is None:
+        bm = b
     # print(Q_decision, b, a_b)
     MV = 0
     for (state, prob) in b.items():
+        MV -= prob * Q[state, a_b]
+    for (state, prob) in bm.items():
         a_m = np.argmax(Q_decision[state])
-        #print(Q[state, a_m] - Q[state, a_b])
-        MV += prob *  (Q[state, a_m] - Q[state, a_b])
+        MV += prob * Q[state, a_m]
+        
         # print(MV)
     return MV
 
@@ -410,7 +424,10 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
     
     problem = cp.Problem(objective, constraints)
     #problem.solve(solver=cp.GLPK)
-    problem.solve(solver=cp.GLOP)
+    try:
+        problem.solve(solver=cp.GLPK, kwargs={"time_limit_sec":1})
+    except cp.error.SolverError:
+        bnext.value = None
     if bnext.value is None:
         print("Error: solver failed!: {}".format(problem.status))
         return next_belief(b,a,Pguess)

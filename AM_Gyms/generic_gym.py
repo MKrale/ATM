@@ -59,7 +59,7 @@ class GenericAMGym(AM_ENV):
         return self.state, self.MeasureCost
         
     def reset(self):
-        self.state = 0
+        self.state = self.s_init
         self.steps_taken = 0
         return self.state
     

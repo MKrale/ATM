@@ -66,6 +66,9 @@ class uMV2_Env(gym.Env):
     def getname(self):
         return "uMV2_{}".format(float_to_str(self.rsmall))
     
+    def set_state(self,s):
+        self.s = s
+    
     
 def float_to_str(float):
         if np.isclose(float, 0):

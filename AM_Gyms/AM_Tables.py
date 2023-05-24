@@ -97,12 +97,18 @@ class AM_Environment_Explicit(Environment_Explicit_Interface):
         """Learns explicit model from Gym class (unimplemented!)"""
         print("to be implemented!")
         
-    def learn_model_AMEnv(self, env:AM_ENV, N = 250, df = 0.8):
+    def learn_model_AMEnv(self, env:AM_ENV, N = 100, df = 0.8):
         """Learns explicit model from AM_ENV class"""
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         self.StateSize += 1
         learner                 = ModelLearner(env, df = df)
-        learner.run_visits(min_visits=N)
+        try:
+            learner.run_setStates(N)
+        except AttributeError:
+            learner.run_visits(N)
+        print("done!")
+
+        # TODO: add catch-except stuff
         self.P, self.R, self.Q  = learner.get_model()
         self.isLearned          = True
         
@@ -148,7 +154,8 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         """Learn robust model from AM_Env class, assuming uncertainty is equal for all transitions and given by parameter alpha."""
         
         self.set_constants_env(env)
-        N_standard, N_robust = self.get_Ns_learning(N_standard, N_robust)
+        if N_robust is None:
+            N_robust = 200
         self.uP_from_alpha(alpha)
         self.learn_RMDP(N_robust, df)
         
@@ -157,15 +164,6 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
         self.StateSize, self.ActionSize, self.MeasureCost, self.s_init = env.get_vars()
         self.StateSize += 1
     
-    def get_Ns_learning(self, N_standard, N_robust):
-        """Determine number of runs required for learning, returns (N_standard, N_robust)"""
-        # These are just wild guesses...
-        if N_robust is None:
-            N_robust = np.max([self.StateSize * self.ActionSize, self.ActionSize * 250])
-        if N_standard is None:
-            # N_standard = np.max([250, self.ActionSize])
-            N_standard = 200 #100 * np.ceil(np.sqrt(self.StateSize)*self.ActionSize)
-        return N_standard, N_robust
     
     def learn_MDP_env(self, env, N_standard, df):
         """Learn the MDP-model from an AM environment (using ModelLearner module)"""
