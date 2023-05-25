@@ -351,10 +351,10 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
                 except FileNotFoundError:
                         base_env = AM_Environment_Explicit()
-                        base_env.learn_model_AMEnv(ENV, df=0.95, N=50)
+                        base_env.learn_model_AMEnv(ENV, df=0.95, N=5)
                         base_env.export_model(ENV.getname(), env_folder_name)
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
-                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95, N_robust = 50)
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95, N_robust = 5)
                 env_explicit.export_model( env_tag, env_folder_name )
         env_explicit.MeasureCost = MeasureCost  # This is slightly hacky, cost probably shouldn't be part of the explict env or always be set manually...
         return env_explicit

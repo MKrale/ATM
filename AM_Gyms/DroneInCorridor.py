@@ -9,28 +9,29 @@ class DroneInCorridor(Env):
     def __init__(self,):
         
         # Positions
-        self.Xmin, self.Xmax = 0, 15
-        self.Ymin, self.Ymax = 0, 15
+        self.Xmin, self.Xmax = 0, 30
+        self.Ymin, self.Ymax = 0, 30
         self.Xnmbr = self.Xmax - self.Xmin + 1
         self.Ynmbr = self.Ymax - self.Ymin + 1
         
         # Speeds
-        self.Vmin, self.Vmax = -3, 3
+        self.Vmin, self.Vmax = -5, 5
         self.Vnmbr = self.Vmax - self.Vmin + 1
         
         # Accelarations
-        self.Amin, self.Amax = -1, 1
+        self.Amin, self.Amax = -2, 2
         self.Anmbr = self.Amax - self.Amin + 1
         
         # Walls
-        self.WallXmin, self.WallXmax = 6, np.infty
-        self.WallYmin, self.WallYmax = 6, np.infty
+        self.WallXmin, self.WallXmax = 11, np.infty
+        self.WallYmin, self.WallYmax = 11, np.infty
         
         # Goal area
-        self.GoalXmin, self.GoalXmax = 0, 5
-        self.GoalYmin, self.GoalYmax = 13, np.inf
+        self.GoalXmin, self.GoalXmax = 0, 10
+        self.GoalYmin, self.GoalYmax = 27, np.inf
         
-        self.s_init = self.vars_to_state(self.Xmax,0,0,0)
+        x_init, y_init, vx_init, vy_init = 30,5,0,0
+        self.s_init = self.vars_to_state(x_init, y_init, vx_init, vy_init)
         self.reset() #sets s and other variables.  
     
     # Functions for going to/from (1D) actions/states to (2/4D) variables
@@ -43,7 +44,7 @@ class DroneInCorridor(Env):
         if y<self.WallYmin:
               return int(vx + self.Vnmbr * (vy + self.Vnmbr * (x + self.Xnmbr * (y))))
         else:
-            states_first_rectangle = (self.Vnmbr-1) + self.Vnmbr * ((self.Vnmbr-1) + self.Vnmbr * ((self.Xnmbr-1) + self.Xnmbr * (self.WallYmin-1)) )
+            states_first_rectangle = 1 + (self.Vnmbr-1) + self.Vnmbr * ((self.Vnmbr-1) + self.Vnmbr * ((self.Xnmbr-1) + self.Xnmbr * (self.WallYmin-1)) )
             y -= (self.WallYmin)
             this_i = int(vx + self.Vnmbr * (vy + self.Vnmbr * (x + (self.WallXmin) * (y))))
             return int(states_first_rectangle + this_i)
@@ -59,7 +60,7 @@ class DroneInCorridor(Env):
             vx = (state % (self.Vnmbr))
         
         else:
-            state -= states_first_rectangle
+            state -= 1+states_first_rectangle
             y =   state                                                 // (self.WallXmin * self.Vnmbr * self.Vnmbr)
             x =  (state % (self.WallXmin * self.Vnmbr * self.Vnmbr))    // (self.Vnmbr * self.Vnmbr)
             vy = (state % (self.Vnmbr * self.Vnmbr))                    //  self.Vnmbr
@@ -181,19 +182,29 @@ class DroneInCorridor(Env):
     
     def get_size(self):
         """Returns StateSize, ActionSize, s_init (for Runfile)"""
-        return (self.vars_to_state(self.Xmax, self.Ymax, self.Vmax, self.Vmax)+1000,
-                self.vars_to_action(self.Amax, self.Amax)+1,
-                self.vars_to_state(0,0,0,0))
+        return (self.vars_to_state(self.Xmax, self.Ymax, self.Vmax, self.Vmax),
+                self.Anmbr*self.Anmbr,
+                self.s_init)
         
+env = DroneInCorridor()
+print(env.get_size())
+print(env.vars_to_state(10,30,5,5))
+print(env.state_to_vars(70299))
+print(env.state_to_vars(70300))
+print(env.state_to_vars(70400))
+for x in range(10):
+    for y in range(30):
+        for vx_ in range(11):
+            for vy_ in range(11):
+                vx=vx_-5; vy=vy_-5
+            
+                i = env.vars_to_state(x,y,vx,vy)
+                x2,y2,vx2,vy2 = env.state_to_vars(i)
+                i2 = env.vars_to_state(x2,y2,vx2,vy2)
+                if i != i2 or (x!=x2 or y!=y2 or vx!=vx2 or vy!=vy2):
+                    print(i, i2,(x,y,vx,vy), (x2,y2,vx2,vy2))
 
-# env = DroneInCorridor()
-# for i in range(14000):
-#     # print(env.state_to_vars(i))
-#     x,y,vx,vy = env.state_to_vars(i)
-#     if env.vars_to_state(x,y,vx,vy) != i:
-#         print(i, env.vars_to_state(x,y,vx,vy), (x,y,vx,vy))
-
-# print(env.vars_to_state(5,15,3,3))
+# print(env.vars_to_state(14,30,5,5))
 # print(env.state_to_vars(8000))
 
 # env.set_state(0)
