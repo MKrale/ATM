@@ -1,10 +1,10 @@
 # ATM Repository
 
-Repository containing code for ATM-Q (referred to here as BAM-QMDP), and gathered data, as used in the paper:
+Repository containing code, as well as gathered data, as used for the paper
 
-> Merlijn Krale, Thiago D. Simão, and Nils Jansen  
-> Act-Then-Measure: Reinforcement Learning for Partially Observable Environments with Active Measuring  
-> In ICAPS, 2023.
+> *Anonymous*
+> Robust Active Measuring under Model Uncertainty  
+> Submitted to AAAI 2024
 
 
 ## Contents
@@ -13,16 +13,17 @@ This repository contains the following files:
 
 Code:
 
-  - **BAM_QMDP.py**           : The BAM-QMDP (a.k.a. (Dyna-)ATMQ) agent as a python class.
-  - **Plot_Data.ipynb**       : Code for plotting data.
-  - **Run.py**                : Code for automatically running agents on environments & recording their data.
+  - **ACNO_Planning.py**      : Code containing all planning algorithms used in the paper;
+  - **Plot_Data.ipynb**       : Code for plotting data (with a **matplotlibrc** file to set formatting);
+  - **Run.py**                : Code for automatically running agents on environments & recording their data;
+  - **RunAll.sh**             : Bash file for automatically running all experiments in the paper;
+  - **Requirements.text**     : File with required python dependencies;
 
 Folders:
 
-  - **AM_Gyms**             : Contains Gym environments used for testing, and wrapper class to make generic OpenAI envs into ACNO-MDP envs.
-  - **Data**                : Contains gahtered date for BNAIC and ICAPS-paper (including analysed data & standard plots).
-  - **Final_Plots**         : Contains compiled plots.
-  - **Baselines**           : Contains code for all baseline algorithms used in the paper or in the testing phase.
+  - **AM_Gyms**             : Contains all code related to setting up and learning models, as used by the planning algorithms.
+  - **Data**                : Contains gathered data, including analysed data & plots.
+  - **Baselines**           : Contains code for all baseline algorithms used while testing.
 
 ## Getting started
 
@@ -46,7 +47,15 @@ All algorithms can be run using the Run.py file from command line. Running 'pyth
 As an example, starting a run looks something like:
 
 ```bash
-python Run.py -algo BAM_QMDP -env Lake -env_gen standard -env_size 8 -env_var semi-slippery -nmbr_eps 2500
+python Run.py -alg ATM_Control_Robust -env Drone -alpha_plan 0.5 -alpha_real 1 -alpha_measure 0.8 -nmbr_eps 100
 ```
 
-This command runs the BAM-QMDP algorithm on the 8x8 semi-slippery lake environment for 2500 episodes (1 run), then it saves the results in ./Data.
+This command runs the CR-ATM algorithm on the Drone environment with $\alpha = 1, \alpha_p = 0.5$, and $\mathcal{M}_CR$ with dynamics parametrized an RMDP with $\alpha=0.8$.
+Thus, CR-ATM-avg uses alpha_measure 1, CR-ATM-pes uses alpha_measure = alpha_plan, and CR-ATM-opt uses alhpa_measure = - alpha_plan (hard-coded).
+To run all experiments from the paper at once, run the following:
+
+```bash
+bash ./Runall.sh
+```
+
+Note that due to size constraints, this repository does not contain pre-computed drone environments, which means running this file might take a long time.

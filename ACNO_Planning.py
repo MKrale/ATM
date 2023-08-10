@@ -1,3 +1,4 @@
+"""File containting all (R)ACNO-MDP planner used in the paper. RMDP-values are pre-computed in seperate files. """
 import numpy as np
 import math as m
 import time
@@ -5,12 +6,9 @@ import pytest
 import cvxpy as cp
 import AM_Gyms.DroneInCorridor as drone
 from functools import lru_cache
-drone_env = drone.DroneInCorridor()
 
-
-from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit
+from AM_Gyms.AM_Tables import  RAM_Environment_Explicit
 from AM_Gyms.AM_Env_wrapper import AM_ENV
-from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
 
 # Globally used tolerances for floating numbers
 rtol=0.0001
@@ -19,6 +17,7 @@ atol= 1e-10
 cache_size = 1_000
 
 class ACNO_Planner():
+    """Generic ATM planner from Krale et al (2023)."""
     
     t = 0 # for debugging
     epsilon_measuring = 0 # 0.05
@@ -27,6 +26,7 @@ class ACNO_Planner():
     def __init__(self, Env:AM_ENV, tables:RAM_Environment_Explicit, use_robust:bool = False, df=0.95):
         
         self.env        = Env
+        # Read (pre-computed) model description from 'tables'
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
         if use_robust:
             self.P, self.Q, _R = tables.get_robust_tables()
@@ -59,6 +59,10 @@ class ACNO_Planner():
     
     def run_episode(self):
         
+        # ATM planning loop, with two minor adjustements:
+        # 1) if beliefs do not change, we force a measuring action (to prevent infinite selfloops);
+        # 2) for efficiency, we choose control actions for the next step before chosing measurement for the current step (since this is used to compute MV).
+        
         self.env.reset()
         currentBelief, nextBelief = {self.s_init:1}, {}
         nextAction:int; currentAction:int; currentMeasuring:bool
@@ -76,7 +80,7 @@ class ACNO_Planner():
                 currentMeasuring = True
             else:
                 nextAction = self.determine_action      (nextBelief)
-                currentMeasuring  = self.determine_measurement (currentBelief, currentAction, nextBelief, nextAction) 
+                currentMeasuring  = self.determine_measurement (currentBelief, currentAction, nextBelief, nextAction)
             reward, done = self.execute_action(currentAction, currentBelief, currentMeasuring)
             if currentMeasuring or np.random.random() < self.epsilon_measuring:
                 nextBelief, cost = self.measure()
@@ -87,7 +91,6 @@ class ACNO_Planner():
             total_reward += reward - cost
             total_steps += 1
             currentBelief, currentAction = nextBelief, nextAction
-            #print(currentBelief, currentAction, currentMeasuring, reward)
         
         return total_reward, total_steps, total_measures
     
@@ -114,16 +117,17 @@ class ACNO_Planner():
         return {s:1}, cost
 
 class ACNO_Planner_Robust(ACNO_Planner):
+    """The R-ATM algorithm. Uses the same loop as ACNO_Planner, but with altered functions to calculte beliefs & action-pairs"""
     
     def __init__(self, Env:AM_ENV, tables:RAM_Environment_Explicit, df=0.95):
         self.env        = Env
+        # Read (pre-computed) model description and RMDP-values from 'tables'
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
-        # self.PReal, _R, self.QReal = tables.get_avg_tables()
         self.Pmin, self.Pmax, _R = tables.get_uncertain_tables()
         self.P, self.Q, _R =  tables.get_robust_tables()
+        
         self.df         = df
-        self.epsilon_measuring = super().epsilon_measuring
-        print(self.cost)
+        self.epsilon_measuring = super().epsilon_measuring # = 0
         
     def determine_measurement(self, b, a, b_next=None, a_next=None):
         b_next_measuring = next_belief(b,a, self.P)
@@ -148,16 +152,20 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
 
     def __init__(self, Env:AM_ENV, PlanEnv:RAM_Environment_Explicit, MeasureEnv:RAM_Environment_Explicit, df=0.95):
         self.env = Env
+        # Read (pre-computed) model description and RMDP-values from 'tables'
         self.StateSize, self.ActionSize, self.cost, self.s_init = PlanEnv.get_vars()
         self.P, self.Q, _R = PlanEnv.get_robust_tables()
         self.Pmin, self.Pmax, _R = PlanEnv.get_uncertain_tables()
         self.Pmeasure, self.Qmeasure, _R = MeasureEnv.get_robust_tables()
+        
         self.df = df
-        self.epsilon_measuring = super().epsilon_measuring
+        self.epsilon_measuring = super().epsilon_measuring # =0
         self.b_measure:dict = {}; self.b_measure_next:dict = {}
         self.s_init, _c = Env.measure()
     
     def run_episode(self):
+        
+        # Same basic control loop as for ACNO_Planner, but we now need to keep track of b_CR as well.
         
         self.env.reset()
         currentBelief, nextBelief = {self.s_init:1}, {}
@@ -181,7 +189,7 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
                 currentMeasuring  = self.determine_measurement (currentBelief, currentAction, currentMeasureBelief, nextBelief, nextAction, nextMeasureBelief) 
                     
             reward, done = self.execute_action(currentAction, currentBelief, currentMeasuring)
-            if currentMeasuring: #or np.random.random() < self.epsilon_measuring:
+            if currentMeasuring: 
                 nextBelief, cost = self.measure()
                 nextMeasureBelief = nextBelief
                 nextAction = self.determine_action (nextBelief)
@@ -241,9 +249,8 @@ def optimal_action(b:dict, Q1:np.ndarray, Q2:np.ndarray = None, returnvalue = Fa
         return optimal_action, thisQ1[optimal_action]
     return optimal_action
 
-def next_belief(b:dict, a:int, P:dict, min_probability_considered:float = 0.001):
-    """computes next belief state, according to current belief b, action a and transition function P.
-    All belief probabilities smaller than min_probability_considered are ignored (for efficiency reasons)."""
+def next_belief(b:dict, a:int, P:dict):
+    """computes next belief state, according to current belief b, action a and transition function P."""
     
     b_next = {}
     
@@ -253,39 +260,7 @@ def next_belief(b:dict, a:int, P:dict, min_probability_considered:float = 0.001)
                 b_next[next_state] += beliefprob * transitionprob
             else:
                 b_next[next_state] = beliefprob * transitionprob
-    
-    # TODO: filter states that are too small
-    # filter = b_next_array >= min_probability_considered
-    # states = np.arange(statesize)[filter]
-    # b_next_array = b_next_array[filter]
-    # b_next_array = b_next_array / np.sum(b_next_array)
-
-    
-    # b_next = dict()
-    # for (state, prob) in zip(states, b_next_array):
-    #     b_next[state] = prob
-    
     return b_next
-
-# OBSOLETE?
-# def next_belief_array(b:dict, a:int, P:np.ndarray, statesize:int, actionsize:int, flat = False):
-#     """Returns the next belief state according to system dynamics, as np.array"""
-#     b_next = {}
-    
-#     for (s, beliefprob) in b.items():
-#         for a in range(actionsize):
-#             for snext in range(statesize):
-#                 if flat:
-#                     index = index_flatten_P(statesize, actionsize, s, a, snext)
-#                 else:
-#                     index = (s,snext)
-#                 if snext in b_next:
-#                     b_next[snext] += beliefprob * P[index]
-#                 else:
-#                     b_next[snext] = beliefprob * P[index]
-                    
-#     return b_next
-    
 
 def measuring_value(b:dict, a_b:int, Q:np.ndarray, bm:dict = None, Q_decision = None):
     """Returns the measuring value, assuming for future states action are chosen according to Q_decision, but real values are given by Q"""
@@ -293,17 +268,13 @@ def measuring_value(b:dict, a_b:int, Q:np.ndarray, bm:dict = None, Q_decision = 
         Q_decision = Q
     if bm is None:
         bm = b
-    # print(Q_decision, b, a_b)
     MV = 0
     for (state, prob) in b.items():
         MV -= prob * Q[state, a_b]
     for (state, prob) in bm.items():
         a_m = np.argmax(Q_decision[state])
         MV += prob * Q[state, a_m]
-        
-        # print(MV)
     return MV
-
 
 def index_flatten_P(statesize, s, snext):
     return snext + statesize * s
@@ -314,14 +285,14 @@ def index_unflatten_P(statesize, index):
     return (s,snext)
 
 def check_valid_P(P, Pmin, Pmax):
-    """Checks whether or not a transition interval is valid"""
+    """Checks whether or not transition function P is valid given uncertainty set Pmin/Pmax"""
     indexsize = np.size(P)
     for i in range(indexsize):
         if not (m.isclose(np.sum(P[i]), 1) and P[i] < Pmax[i] and P[i] > Pmin[i]):
             return False
     return True
 
-def get_partial_b(state_indexes:np.ndarray, b:dict,  flat = False):
+def get_partial_b(state_indexes:np.ndarray, b:dict):
     """Returns belief state as np.ndarray, containing only those states specified in state_indexes"""
     b_array = np.zeros(np.size(state_indexes))
     for (i,s) in enumerate(state_indexes):
@@ -377,10 +348,8 @@ def get_Ps_for_belief(state_indexes:np.ndarray, b:dict, a:int, P:dict, Pmin:dict
     return (b_array, bnext, bnext_min, bnext_max)
             
 def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarray, min_probability_considered:float = 0.01):
-    """We rewrite our worst-case probability function as the solution of a linear program of the following form:
+    """Computes the worst-case next belief when taking action a form belief b, given the specified uncertain transition- and Q-value functions."""
     
-    minimize b
-    """
     # Unpack P & Q into arrays of required sizes
     relevant_current_states, relevant_next_states = [], []
     for s in b.keys():
@@ -392,18 +361,17 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
     
     Pmin_small   = get_partial_P(state_indexes, Pmin, a, flat=False)
     Pmax_small   = get_partial_P(state_indexes, Pmax, a, flat=False)
-    Pguess_small = get_partial_P(state_indexes, Pguess, a, flat=False)
     Q_small = Q[state_indexes]
     b_array = get_partial_b(state_indexes, b)
         
-    # Define as Convex problem & solve (slow...)
+    # Define as Convex problem & solve
     
     P = cp.Variable( (statesize,statesize) )
     bnext = cp.Variable(statesize)
     
     Qmax = cp.Variable()
     objective = cp.Minimize(Qmax)
-    constraints = [bnext == b_array @ P] # @ ?
+    constraints = [bnext == b_array @ P]
     for a in range(actionsize):
         constraints.append(Qmax >= bnext @ Q_small[:,a])
     for (index, state) in enumerate(state_indexes):
@@ -413,7 +381,7 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
             constraints.append(P[index] <= Pmax_small[index])
     
     problem = cp.Problem(objective, constraints)
-    #problem.solve(solver=cp.GLPK)
+
     try:
         problem.solve(solver=cp.GLPK, kwargs={"time_limit_sec":1})
     except cp.error.SolverError:
@@ -425,116 +393,3 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
 
     b_worst_dict = b_array_to_dict(bnext.value, state_indexes)
     return b_worst_dict
-    
-    
-    
-    # Goal = lambda P: optimal_action(next_belief_flat_array(b,a,P,statesize, actionsize), Q, returnvalue=True)[1]
-
-    
-    
-    # Constraints = {"type":"ineq", "fun": lambda P: float(not check_valid_P(P, Pmin, Pmax))}
-    
-    # minimize_results = minimize(fun=Goal, x0 = Pguess, constraints = [Constraints])
-    # if minimize_results["success"]:
-    #     P = minimize_results["x"]
-    # else:
-    #     print (minimize_results["message"])
-    #     P = Pguess
-    
-    
-    # actionsize = 0
-    # done = False
-    # currentP = np.zeros()
-    # states = np.zeros()
-    # b_next_array = ...
-    # while not done:
-    #     b_next = next_belief(b,a,currentP)
-        
-    #     Q_next = np.zeros(actionsize)
-    #     for (state, prob) in b_next.items():
-    #         Q_next += prob * Q[state]
-    #     a_b, Q_a_b = np.argmax(Q_next), np.max(Q_next)
-    #     Q_rest = np.delete(Q_next,a_b, axis=1)
-    #     a_b_2nd, Q_a_b_2nd = np.argmax(Q_rest), np.max(Q_rest)
-        
-    #     s_next_to_minimize = np.argmax(Q[b_next_array, a_b])
-    #     Q_s_next_to_minimize = np.max(Q[b_next_array, a_b])
-        
-    #     delta_probability = (Q_a_b - Q_a_b_2nd) / Q_s_next_to_minimize
-    #     sources = np.nonzero(currentP[:,a,s_next_to_minimize])
-    #     done2 = False
-    #     while not done2:
-    #         source_state = sources[1]
-            
-            
-        
-        
-    #     source_state = np.argmax(currentP[:,a,s_next_highest_Q])
-    #     delta_probability_tried = 
-    
-    
-    # solver = pywraplp.Solver.CreateSolver('GLOP')
-    
-    # nmbr_states = len(b)
-    # (_total_states, nmbr_actions) = np.shape(Q)
-    # Normalising_constraints = []
-    # Goal = ""
-    
-    # # Set up actions as extra variables:
-    # one_action_constraint = ""
-    # actions = []
-    # for a in range(nmbr_actions):
-    #     variable_name = "a_{}".format(a)
-    #     actions.append(solver.IntVar(0, 1, variable_name))
-    #     one_action_constraint += "{}+".format(actions[a])
-    # one_action_constraint = one_action_constraint[:-1] + "=1"
-    
-    # sa_pairs = []
-    # for (s, _prob) in b.items():
-    #     b_next = Pmax[s][a]
-    #     this_normalisation_constraint = ""
-    #     for (s_next, _prob) in b_next.items():
-    #         # Add variable
-    #         variable_name = "P_{}_{}".format(s,s_next)
-    #         sa_pairs.append(solver.NumVar(0,1, variable_name))
-    #         # Set up constraints for this P
-    #         solver.Add("{} >= {}".format(variable_name, Pmin[s][a]))
-    #         solver.Add("{} <= {}".format(variable_name, Pmax[s][a]))
-    #         this_normalisation_constraint += "{}+".format(variable_name)
-    #         # Set up goal
-    #         for action in range(action_names):
-    #             Goal += "{} * {} +".format(action, variable_name)
-            
-            
-            
-    #     this_normalisation_constraint = this_normalisation_constraint[:-1] + ">=1"
-    #     Normalising_constraints.append(this_normalisation_constraint)
-            
-    # status = solver.Solve()
-    # print(status)
-        
-        
-    
-    # states, b_array = [], []
-    # for (state, prob) in b.items():
-    #     states.append(state), b_array.append(prob)
-        
-        
-    
-    
-    # done = False
-    # states_left = states.copy()
-    # while not done:
-    #     a_b = np.argmax(Q_next)
-        
-    #     best_current_s = np.argmax()
-        
-    #     best_next_s, best_next_q   = np.argmax(Q[states_left,a_b]), np.max(Q[states_left,a_b])
-        
-        
-    #     worst_s, worst_q = np.argmin(Q[states_left,a_b]), np.min(Q[states_left,a_b])
-        
-    #     change_in_b_to_try = 
-        
-    
-    

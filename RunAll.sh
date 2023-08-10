@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# This file runs all experiments as used in the ICAPS23 paper, and stores them in the data-folder. For creating plots, see the Plot_Data.ipynb
-# Note: in reality, all data has been gathered by manually starting runs. Thus, this code is meant more as a reference and might take a very long time to run!
+# This file runs all experiments as used in the paper, and stores them in the data-folder. For creating plots, see the Plot_Data.ipynb
+# Note: this file has been written to efficiently use all resources on our setup. 
+#       Other setups may require altering the code such that less (or more) runs occur at once.
 
 
 

@@ -27,7 +27,7 @@ import os
 
 # Agents
 import Baselines.AMRL_Agent as amrl
-from BAM_QMDP import BAM_QMDP
+from Baselines.BAM_QMDP import BAM_QMDP
 # from ACNO_Planning_old import ACNO_Planner, ACNO_Planner_SemiRobust, ACNO_Planner_Correct
 
 from Baselines.ACNO_generalised.Observe_then_plan_agent import ACNO_Agent_OTP
@@ -44,7 +44,7 @@ from AM_Gyms.Blackjack import BlackjackEnv
 from AM_Gyms.MachineMaintenance import Machine_Maintenance_Env
 from AM_Gyms.frozen_lake import FrozenLakeEnv, generate_random_map, is_valid
 from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit, OptAM_Environment_Explicit
-from AM_Gyms.uMeasureValueEnv import uMV_Env
+from AM_Gyms.uMV import uMV_Env
 from AM_Gyms.uMV2 import uMV2_Env
 from AM_Gyms.DroneInCorridor import DroneInCorridor
 
