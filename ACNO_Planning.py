@@ -3,6 +3,9 @@ import math as m
 import time
 import pytest
 import cvxpy as cp
+import AM_Gyms.DroneInCorridor as drone
+from functools import lru_cache
+drone_env = drone.DroneInCorridor()
 
 
 from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit
@@ -12,6 +15,8 @@ from AM_Gyms.ModelLearner_Robust import ModelLearner_Robust
 # Globally used tolerances for floating numbers
 rtol=0.0001
 atol= 1e-10
+
+cache_size = 1_000
 
 class ACNO_Planner():
     
@@ -55,7 +60,7 @@ class ACNO_Planner():
     def run_episode(self):
         
         self.env.reset()
-        currentBelief, nextBelief = {0:1}, {}
+        currentBelief, nextBelief = {self.s_init:1}, {}
         nextAction:int; currentAction:int; currentMeasuring:bool
         done = False
         total_reward, total_steps, total_measures = 0, 0, 0
@@ -114,13 +119,12 @@ class ACNO_Planner_Robust(ACNO_Planner):
         self.env        = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = tables.get_vars()
         # self.PReal, _R, self.QReal = tables.get_avg_tables()
-        self.Pmin, self.Pmax, self.R = tables.get_uncertain_tables()
+        self.Pmin, self.Pmax, _R = tables.get_uncertain_tables()
         self.P, self.Q, _R =  tables.get_robust_tables()
         self.df         = df
         self.epsilon_measuring = super().epsilon_measuring
+        print(self.cost)
         
-        print(self.s_init)
-
     def determine_measurement(self, b, a, b_next=None, a_next=None):
         b_next_measuring = next_belief(b,a, self.P)
         if a_next is None:
@@ -130,7 +134,13 @@ class ACNO_Planner_Robust(ACNO_Planner):
     def determine_action(self, b):
         return optimal_action(b, self.Q, None)
     
-    def compute_next_belief(self, b, a):
+    def compute_next_belief(self, b:dict, a:int):
+        b_hashable = frozenset(b.items())
+        return self.compute_next_belief_(b_hashable, a)
+    
+    @lru_cache(maxsize=cache_size)
+    def compute_next_belief_(self, b_hashable, a):
+        b = {s:p for (s, p) in b_hashable}
         return custom_worst_belief(b, a, self.P, self.Pmin, self.Pmax, self.Q)
         
 
@@ -140,19 +150,18 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
         self.env = Env
         self.StateSize, self.ActionSize, self.cost, self.s_init = PlanEnv.get_vars()
         self.P, self.Q, _R = PlanEnv.get_robust_tables()
-        self.Pmin, self.Pmax, self.R = PlanEnv.get_uncertain_tables()
+        self.Pmin, self.Pmax, _R = PlanEnv.get_uncertain_tables()
         self.Pmeasure, self.Qmeasure, _R = MeasureEnv.get_robust_tables()
         self.df = df
         self.epsilon_measuring = super().epsilon_measuring
         self.b_measure:dict = {}; self.b_measure_next:dict = {}
-        print(self.s_init)
-        print(self.StateSize)
+        self.s_init, _c = Env.measure()
     
     def run_episode(self):
         
         self.env.reset()
-        currentBelief, nextBelief = {0:1}, {}
-        currentMeasureBelief, nextMeasureBelief = {0:1}, {}
+        currentBelief, nextBelief = {self.s_init:1}, {}
+        currentMeasureBelief, nextMeasureBelief = {self.s_init:1}, {}
         nextAction:int; currentAction:int; currentMeasuring:bool
         done = False
         total_reward, total_steps, total_measures = 0, 0, 0
@@ -187,7 +196,6 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
     def compute_next_measure_belief(self, b, a):
         return next_belief(b,a,self.Pmeasure)
         
-    
     def determine_measurement(self, b, a, bm, b_next:None, a_next:None, bm_next:None):
         if b_next is None or a_next is None or bm_next is None:
             print("ERROR: determine_measurement not fully implemented for non-given next beliefs/actions")
@@ -381,24 +389,6 @@ def custom_worst_belief(b:dict, a:int, Pguess, Pmin:dict, Pmax:dict, Q:np.ndarra
             relevant_next_states.append(snext)
     state_indexes = np.unique(np.append(relevant_current_states, relevant_next_states))
     statesize, actionsize = np.size(state_indexes), np.shape(Q)[1]
-    
-    # b_array, bnext, bnext_min, bnext_max = get_Ps_for_belief(state_indexes, b, a, Pguess, Pmin, Pmax)
-    
-    # Q_next = np.inf
-    # for anext in actionsize:
-    
-    #     Q_small = Q[state_indexes,anext]
-    #     bnext_robust = np.array(ModelLearner_Robust.custom_delta_minimize(bnext_min, bnext_max, bnext, Q_small))
-    #     print(bnext_robust)
-    #     bnext_robust = b_array_to_dict(bnext_robust, state_indexes)
-        
-    #     this_Q_next = 0
-    #     for (state, prob) in bnext_robust.items():
-    #         Q_next += prob*np.max(Q[state], axis=1)
-    #     if this_Q_next < 
-            
-    # return bnext_robust
-    
     
     Pmin_small   = get_partial_P(state_indexes, Pmin, a, flat=False)
     Pmax_small   = get_partial_P(state_indexes, Pmax, a, flat=False)

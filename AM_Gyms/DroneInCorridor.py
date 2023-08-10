@@ -11,11 +11,14 @@ class DroneInCorridor(Env):
         # Positions
         self.Xmin, self.Xmax = 0, 30
         self.Ymin, self.Ymax = 0, 30
+        # self.Xmin, self.Xmax = 0, 15
+        # self.Ymin, self.Ymax = 0, 15
         self.Xnmbr = self.Xmax - self.Xmin + 1
         self.Ynmbr = self.Ymax - self.Ymin + 1
         
         # Speeds
         self.Vmin, self.Vmax = -5, 5
+        # self.Vmin, self.Vmax = -3, 3
         self.Vnmbr = self.Vmax - self.Vmin + 1
         
         # Accelarations
@@ -23,14 +26,18 @@ class DroneInCorridor(Env):
         self.Anmbr = self.Amax - self.Amin + 1
         
         # Walls
-        self.WallXmin, self.WallXmax = 11, np.infty
-        self.WallYmin, self.WallYmax = 11, np.infty
+        self.WallXmin, self.WallXmax = 6, np.infty
+        self.WallYmin, self.WallYmax = 6, np.infty
+        # self.WallXmin, self.WallXmax = 6, np.infty
+        # self.WallYmin, self.WallYmax = 6, np.infty
         
         # Goal area
-        self.GoalXmin, self.GoalXmax = 0, 10
+        self.GoalXmin, self.GoalXmax = 0, 5
         self.GoalYmin, self.GoalYmax = 27, np.inf
+        # self.GoalXmin, self.GoalXmax = 0, 5
+        # self.GoalYmin, self.GoalYmax = 13, np.inf
         
-        x_init, y_init, vx_init, vy_init = 30,5,0,0
+        x_init, y_init, vx_init, vy_init = 29,2,0,0
         self.s_init = self.vars_to_state(x_init, y_init, vx_init, vy_init)
         self.reset() #sets s and other variables.  
     
@@ -90,10 +97,10 @@ class DroneInCorridor(Env):
             a += 1
         elif p < 0.96:
             a-= 1
-        # elif a < 0.98:
-        #     a += 2
-        # else:
-        #     a -= 2
+        elif a < 0.98:
+            a += 2
+        else:
+            a -= 2
         if abs(a)> amax:
             a = amax * np.sign(a)
         return a
@@ -171,7 +178,7 @@ class DroneInCorridor(Env):
         self.x, self.y, self.vx, self.vy = self.state_to_vars(self.s_init)
         
     def getname(self):
-        return "Drone"
+        return "Drone_narrow"
     
     def set_state(self, s):
         self.s = s
@@ -187,24 +194,27 @@ class DroneInCorridor(Env):
                 self.s_init)
         
 env = DroneInCorridor()
-print(env.get_size())
-print(env.vars_to_state(10,30,5,5))
-print(env.state_to_vars(70299))
-print(env.state_to_vars(70300))
-print(env.state_to_vars(70400))
-for x in range(10):
-    for y in range(30):
-        for vx_ in range(11):
-            for vy_ in range(11):
-                vx=vx_-5; vy=vy_-5
-            
-                i = env.vars_to_state(x,y,vx,vy)
-                x2,y2,vx2,vy2 = env.state_to_vars(i)
-                i2 = env.vars_to_state(x2,y2,vx2,vy2)
-                if i != i2 or (x!=x2 or y!=y2 or vx!=vx2 or vy!=vy2):
-                    print(i, i2,(x,y,vx,vy), (x2,y2,vx2,vy2))
+# print(env.s_init)
+# print(env.state_to_vars(11071))
 
-# print(env.vars_to_state(14,30,5,5))
+print(env.get_size())
+# print(env.vars_to_state(10,30,5,5))
+# print(env.state_to_vars(70299))
+# print(env.state_to_vars(70300))
+# print(env.state_to_vars(70400))
+# for x in range(10):
+#     for y in range(30):
+#         for vx_ in range(11):
+#             for vy_ in range(11):
+#                 vx=vx_-5; vy=vy_-5
+            
+#                 i = env.vars_to_state(x,y,vx,vy)
+#                 x2,y2,vx2,vy2 = env.state_to_vars(i)
+#                 i2 = env.vars_to_state(x2,y2,vx2,vy2)
+#                 if i != i2 or (x!=x2 or y!=y2 or vx!=vx2 or vy!=vy2):
+#                     print(i, i2,(x,y,vx,vy), (x2,y2,vx2,vy2))
+
+print(env.vars_to_state(14,30,5,5))
 # print(env.state_to_vars(8000))
 
 # env.set_state(0)

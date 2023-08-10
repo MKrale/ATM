@@ -133,13 +133,14 @@ class ModelLearner_Robust():
         if logging:
             print("Learning robust model started:")
         for i in range(updates):
-            S = np.arange(self.StateSize-1)
-            np.random.shuffle(S)
+            S = np.argsort(self.Qr_max)
+            # S = np.arange(self.StateSize-1)
+            # np.random.shuffle(S)
             for s in S:
-                a = self.pick_action(s)
-                self.update_Qr(s, a)
+                for a in range(self.ActionSize):
+                    self.update_Qr(s, a)
                 
-            if (i%(np.min([updates/10, 1000])) == 0 and logging):
+            if ((i+1)%(min([round(updates/10), 1])) == 0 and logging):
                 print("Episode {} completed!".format(i+1))
 
         if logging:

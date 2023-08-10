@@ -193,7 +193,6 @@ class RAM_Environment_Explicit(Environment_Explicit_Interface):
                 for (snext, prob) in self.Pavg[s][a].items():
                     self.Pmin[s][a][snext], self.Pmax[s][a][snext] = 0, np.min([prob*1/alpha, 1])
         
-        
     def env_to_dict(self):
         """Returns dictiorary with all environment variables"""
         dict_robust =   {
