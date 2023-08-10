@@ -86,7 +86,7 @@ parser.add_argument('-env_var_plan'     , default = 0,                  help='En
 parser.add_argument('-alpha_measure'    , default = 0,                  help='Risk-sensitivity factor as used for measuring by Control-Robust ATM. Negative values are optimistic, 0 means alpha_plan is copied.')
 parser.add_argument('-env_var_measure'  , default = 0,                  help='Env variant used for measurements. Leave as 0 for same as real one.')
 parser.add_argument('-alpha_real'       , default = 1,                  help='Risk-sensitivity factor as run on. Negative values are best-cases.')
-parser.add_argument('-beta'             , default = 0,                  help='Factor of randomising real env from RMDP version.' )
+parser.add_argument('-beta'             , default = 0,                  help='Factor of randomising real env from RMDP version (unused).' )
 parser.add_argument('-env_remake'       , default=True,                 help='Option to make a new (random) environment each run or not')
 
 # Unpacking for use in this file:
@@ -190,15 +190,17 @@ def get_env(seed = None, get_base = False, variant=None):
         
         np.random.seed(seed)
         
-        # Basically, just a big messy pile of if/else statements...
+        # Basically, just a big messy pile of if/else statements to select the correct model...
         
-        # Loss-environment, called Measure Regret environment in paper.
-        if env_name == "Loss":
-                env = Measure_Loss_Env()
-                StateSize, ActionSize, s_init = 4, 2, 0
+        
+        # Our custom drone environment
+        if env_name == "Drone":
+                env = DroneInCorridor()
+                StateSize, ActionSize, s_init = env.get_size()
                 if MeasureCost == -1:
-                        MeasureCost = 0.1
+                        MeasureCost = 0.01
 
+        # Our two toy environments
         if env_name == "uMV":
                 if variant == 'None':           p = 0.5
                 else:                           p = float(variant)
@@ -214,8 +216,16 @@ def get_env(seed = None, get_base = False, variant=None):
                 StateSize, ActionSize, s_init = 4, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.2
-                
-                # Frozen lake environment (includes all variants)
+        
+        # From here on, a lot of testing environments:
+        
+        # Measure Regret environment (Krale et al, 2023).
+        elif env_name == "Loss":
+                env = Measure_Loss_Env()
+                StateSize, ActionSize, s_init = 4, 2, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.1
+        # Frozen lake environment (all variants)
         elif env_name == "Lake":
                 ActionSize, s_init = 4,0
                 if MeasureCost == -1:
@@ -257,14 +267,14 @@ def get_env(seed = None, get_base = False, variant=None):
                         print("Environment var not recognised! (using deterministic variant)")
                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                 
-        # Taxi environment, as used in AMRL-Q paper. Not used in paper           
+        # Taxi environment, as used in AMRL-Q paper         
         elif env_name == "Taxi":
                 env = gym.make('Taxi-v3')
                 StateSize, ActionSize, s_init = 500, 6, -1
                 if MeasureCost == -1:
                         MeasureCost = MeasureCost_Taxi_default
 
-        # Chain environment, as used in AMRL-Q paper. Not used in paper
+        # Chain environment, as used in AMRL-Q paper
         elif env_name == "Chain":
                 if env_size == '10':
                         StateSize = 10
@@ -283,20 +293,21 @@ def get_env(seed = None, get_base = False, variant=None):
                 if MeasureCost == -1:
                         MeasureCost = MeasureCost_Chain_default
         
-        # Sepsis environment, as used in ACNO-paper. Not used in paper
+        # Sepsis environment, as used in ACNO-paper
         elif env_name == 'Sepsis':
                 env = SepsisEnv()
                 StateSize, ActionSize, s_init = 720, 8, -1
                 if MeasureCost == -1:
                         MeasureCost = 0.05
 
-        # Standard OpenAI Gym blackjack environment. Not used in paper
+        # Standard OpenAI Gym blackjack environment
         elif env_name == 'Blackjack':
                 env = BlackjackEnv()
                 StateSize, ActionSize, s_init = 704, 2, -1
                 if MeasureCost ==-1:
                         MeasureCost = 0.05
 
+        # Maintenance environment from Delage and Mannor (2010)
         elif env_name == "Maintenance":
                 if env_size == 0:
                         env_size = 8
@@ -307,24 +318,22 @@ def get_env(seed = None, get_base = False, variant=None):
                 has_terminal_state = False
                 max_steps = 100
         
-        elif env_name == "Drone":
-                env = DroneInCorridor()
-                StateSize, ActionSize, s_init = env.get_size()
-                if MeasureCost == -1:
-                        MeasureCost = 0.01
-        
         else:
                 print("Environment {} not recognised, please try again!".format(env_name))
                 return
-                
+        
+        # Create the robust version of the environment (if required)
+        
         ENV = wrapper(env, StateSize, ActionSize, MeasureCost, s_init)
         args.m_cost = MeasureCost          
-        if (alpha_real != 10) and not get_base: #???
-                env_explicit = get_explicit_env(ENV, env_folder_name, env_postname_real, alpha_real)
+        if not get_base:
+                # learn the robust env, ...
+                env_explicit = get_explicit_env(ENV, env_folder_name, env_postname_real, alpha_real) 
                 if beta > 0:
                         env_explicit.randomize(beta)
-                P, _Q, R = env_explicit.get_robust_tables()
-                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, ENV.getname(), has_terminal_state, max_steps)
+                # ... then re-make into an openAI environment.
+                P, _Q, R = env_explicit.get_robust_tables() 
+                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, ENV.getname(), has_terminal_state, max_steps) 
         
         return ENV
 
@@ -333,17 +342,17 @@ def get_env(seed = None, get_base = False, variant=None):
 ######################################################
 
 def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
-        # is_not_uncertain = (alpha == 0.0 or alpha >= 1.0 or alpha <=-1.0)
-        # if is_not_uncertain:
-        #         env_explicit = AM_Environment_Explicit()
+        """Returns an version of the environment with explicit readable transition- and Q-value functions, to use during planning. """
         if alpha > 0:
                 env_explicit = RAM_Environment_Explicit()
+        # We interpret negavive alpha's as optimtic
         elif alpha <0:
                 env_explicit = OptAM_Environment_Explicit()
                 alpha = - alpha
                 
         env_tag = ENV.getname() + env_postname
         
+        # See if the (base) environment already exists, otherwise learn it.
         try:
                 env_explicit.import_model(fileName = env_tag, folder = env_folder_name)
         except FileNotFoundError:
@@ -359,62 +368,58 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
         env_explicit.MeasureCost = MeasureCost  # This is slightly hacky, cost probably shouldn't be part of the explict env or always be set manually...
         return env_explicit
 
-# Both final names and previous/working names are implemented here
 def get_agent(seed=None):
         global env_fullname_run
         
+        # Setting up all different envs that might be required
         ENV = get_env(seed)
         env_fullname_run = ENV.getname() + env_postname_run 
         ENV_base_plan = get_env(seed, get_base=True, variant = env_variant_plan)
         ENV_base_measure = get_env(seed, get_base=True, variant = env_variant_measure)
-        
-        # print(env_variant, env_variant_plan, env_variant_measure)
-        # print(env_fullname_run)
-        # print(env_postname_run)
 
+        # Now, just a list of if-else statements to select the correct agent:
         
-        
-        # AMRL-Q, as specified in original paper
-        if algo_name == "AMRL":
-                agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
-                # AMRL-Q, alter so it is completely greedy in last steps.
-        elif algo_name == "AMRL_greedy":
-                agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
-        # BAM_QMDP, named Dyna-ATMQ in paper. Variant with no offline training
-        elif algo_name == "BAM_QMDP":
-                agent = BAM_QMDP(ENV, offline_training_steps=0)
-        # BAM_QMDP, named Dyna-ATMQ in paper. Variant with 25 offline training steps per real step
-        elif algo_name == "BAM_QMDP+":
-                agent = BAM_QMDP(ENV, offline_training_steps=25)
-                
-        elif algo_name == "ATM":
+        # ATM-avg: the generic planner as used in Krale et al (2023)
+        if algo_name == "ATM":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner(ENV, env_plan)
-                
+        # ATM-pes: the same planner, but using the RMDP model
         elif algo_name == "ATM_RMDP":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner(ENV, env_plan, use_robust=True)
-                
+        # R-ATM
         elif algo_name == "ATM_Robust":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner_Robust(ENV, env_plan)
-                
+        # CR-ATM
         elif algo_name == "ATM_Control_Robust":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 env_measure = get_explicit_env(ENV_base_measure, env_folder_name, env_postname_measure, alpha_measure)
                 agent = ACNO_Planner_Control_Robust(ENV, env_plan, env_measure)
-                
-        # Observe-while-planning agent from ACNO-paper. We did not get this to work well, so did not include in in paper
+        
+        # Now, some unused algorithms for generic ACNO-MDPs:
+        
+        # AMRL-Q, as specified in original paper
+        elif algo_name == "AMRL":
+                agent = amrl.AMRL_Agent(ENV, turn_greedy=True)
+                # AMRL-Q, alter so it is completely greedy in last steps.
+        elif algo_name == "AMRL_greedy":
+                agent = amrl.AMRL_Agent(ENV, turn_greedy=False)
+        # Dyna-ATMQ, from Krale et al (2023). Variant with no offline training
+        elif algo_name == "BAM_QMDP":
+                agent = BAM_QMDP(ENV, offline_training_steps=0)
+        # BAM_QMDP, but a variant with 25 offline training steps per real step
+        elif algo_name == "BAM_QMDP+":
+                agent = BAM_QMDP(ENV, offline_training_steps=25)
+        # Observe-while-planning agent from Nam et al (2021). It does not really work...
         elif algo_name == "ACNO_OWP":
                 ENV_ACNO = ACNO_ENV(ENV)
                 agent = ACNO_Agent_OWP(ENV_ACNO)
-        # Observe-then-plan agent from ACNO-paper. As used in paper, slight alterations made from original
+        # Observe-then-plan agent from Nam et al (2021), with slight alterations
         elif algo_name == "ACNO_OTP":
                 ENV_ACNO = ACNO_ENV(ENV)
                 agent = ACNO_Agent_OTP(ENV_ACNO)
-        # A number of generic RL-agents. We did not include these in the paper.
-        # case "DRQN":
-        #         agent = DRQN_Agent(ENV)
+        # A number of generic RL-agents.
         elif algo_name == "QBasic":
                 agent = QBasic(ENV)
         elif algo_name == "QOptimistic":

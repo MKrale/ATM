@@ -2,7 +2,7 @@
 
 Repository containing code, as well as gathered data, as used for the paper
 
-> *Anonymous*
+> *Anonymous*  
 > Robust Active Measuring under Model Uncertainty  
 > Submitted to AAAI 2024
 
@@ -50,7 +50,7 @@ As an example, starting a run looks something like:
 python Run.py -alg ATM_Control_Robust -env Drone -alpha_plan 0.5 -alpha_real 1 -alpha_measure 0.8 -nmbr_eps 100
 ```
 
-This command runs the CR-ATM algorithm on the Drone environment with $\alpha = 1, \alpha_p = 0.5$, and $\mathcal{M}_CR$ with dynamics parametrized an RMDP with $\alpha=0.8$.
+This command runs the CR-ATM algorithm on the Drone environment with $\alpha = 1, \alpha_p = 0.5$, and $\mathcal{M}_\text{CR}$ with dynamics parametrized an RMDP with $\alpha=0.8$.
 Thus, CR-ATM-avg uses alpha_measure 1, CR-ATM-pes uses alpha_measure = alpha_plan, and CR-ATM-opt uses alhpa_measure = - alpha_plan (hard-coded).
 To run all experiments from the paper at once, run the following:
 

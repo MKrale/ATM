@@ -1,6 +1,5 @@
 import numpy as np
 import math as m
-#from AM_Gyms.AM_Tables import RAM_Environment_Explicit
 
 def deep_copy(dict, S ,A):
     copy = {}
@@ -8,7 +7,6 @@ def deep_copy(dict, S ,A):
         copy[s] = {}
         for a in range(A):
             copy[s][a] = {}
-            #copy[s][a] = dict[s][a]
             for (s2, p) in dict[s][a].items():
                 copy[s][a][s2] = p
     return copy
@@ -42,7 +40,7 @@ class ModelLearner_Robust():
         self.Qavg_max[s] = np.max(self.Qavg[s])
     
     def update_Qr(self, s, a):
-        """Updates ICVaR according to (known) model dynamics"""
+        """Updates Qr according to (known) model dynamics"""
         
         # 1) Read relevant vars into lists 
         # NOTE: there must be a more efficienty way of doing this...
@@ -56,10 +54,10 @@ class ModelLearner_Robust():
             qr.append(self.Qr_max[state])
         
         
-        # 2) Get ICVaR values according to custom procedure
+        # 2) Get Pr values according to custom procedure
         pr = ModelLearner_Robust.custom_delta_minimize(np.array(pmin), np.array(pmax), np.array(pguess), np.array(qr), optimistic = self.optimistic)
         
-        # 3) Update deltaP's and ICVaR
+        # 3) Update deltaP's and Qr's
         thisQ = 0
         for (i,snext) in enumerate(states):
             self.Pr[s][a][snext] = pr[i]
@@ -72,10 +70,10 @@ class ModelLearner_Robust():
     @staticmethod    
     def custom_delta_minimize(Pmin:np.ndarray, Pmax:np.ndarray, Pguess:np.ndarray, Qr:np.ndarray, optimistic = False):
         """Calculates the worst-case disturbance delta of transition probabilities probs,
-        according to next state icvar's and perturbation budget 1/alpha.
+        according to next state Qr's and uncertainty set Pmin/Pmax.
         
         The general idea of this method is to repeatedly maximize the probability for
-        the worst-case scenerio (for which delta<1/alpha), while simultaiously lowering 
+        the worst-case scenerio (for which p < pmax), while simultaiously lowering 
         probabilities for the best-case scenario. By alternating these, we aim to keep the 
         total transition probability equal to 1.
         """
@@ -127,15 +125,13 @@ class ModelLearner_Robust():
         return np.argmax(self.Qr[s])
     
     def run(self, updates = 1_000, logging = True):
-        """Calculates model dynamics using eps_modelearning episodes, then ICVaR using
-        updates updates per state."""
+        """Calculates model dynamics using eps_modelearning episodes, then Qr using
+        'updates' updates per state."""
 
         if logging:
             print("Learning robust model started:")
         for i in range(updates):
-            S = np.argsort(self.Qr_max)
-            # S = np.arange(self.StateSize-1)
-            # np.random.shuffle(S)
+            S = np.argsort(self.Qr_max) # heuristic ordering
             for s in S:
                 for a in range(self.ActionSize):
                     self.update_Qr(s, a)
@@ -148,36 +144,3 @@ class ModelLearner_Robust():
     def get_model(self):
         """Return (Pr, Qr)"""
         return (self.Pr, self.Qr)
-
-    
-    
-    # def calculate_model_dicts(self):
-        
-    #     self.P_dict, self.DeltaP_dict = {}, {}
-    #     for s in range(self.StateSize):
-    #         self.P_dict[s] = {}; self.DeltaP_dict[s] = {}
-    #         for a in range(self.ActionSize):
-    #             self.P_dict[s][a] = {}; self.DeltaP_dict[s][a] = {}
-    #             for (snext,p) in enumerate(self.P[s,a]):
-    #                 if p != 0:
-    #                     self.P_dict[s][a][snext] = p
-    #                     self.DeltaP_dict[s][a][snext] = self.DeltaP[s,a,snext]
-                        
-
-# Code for testing:
-
-# from AM_Gyms.frozen_lake import FrozenLakeEnv
-
-# Semi-slippery, larger   
-# Env = AM_ENV( FrozenLakeEnv_v2(map_name = "8x8", is_slippery=True), StateSize=64, ActionSize=4, s_init=0, MeasureCost = 0.1 )
-
-# semi-slippery, small
-# Env = AM_ENV( FrozenLakeEnv_v2(map_name = "4x4", is_slippery=True), StateSize=16, ActionSize=4, s_init=0, MeasureCost = 0.1 )
-
-# slippery, small
-# Env = AM_ENV( FrozenLakeEnv(map_name = "4x4", is_slippery=True), StateSize=16, ActionSize=4, s_init=0, MeasureCost = 0.1 )
-
-# icvar = ICVaR(Env, alpha = 0.3)
-
-# icvar.run(logging=True)
-# print(icvar.ICVaR)

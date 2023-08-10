@@ -1,3 +1,4 @@
+"""File containing classes for explicitely expressing models, i.e. with a full P, Q & R table"""
 from abc import abstractmethod
 import numpy as np
 from gym import Env, spaces, utils
@@ -27,6 +28,7 @@ def jsonKeys2int(x):
     return x
 
 class Environment_Explicit_Interface():
+    # Interface class for our explicit environments, contains for importing & exporting
     
     # Basic variables
     StateSize:int
