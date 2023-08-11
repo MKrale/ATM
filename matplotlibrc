@@ -1,6 +1,6 @@
 # figure.figsize         : 3.32, 2.49
-# figure.figsize         : 4.34, 2.49
-figure.figsize         : 6, 3
+# figure.figsize         : 4, 2.5       # behaviour subplot size
+figure.figsize         : 6, 3     # other figures size
 # figure.figsize          : 10,5
 figure.dpi             : 200
 figure.facecolor       : white
@@ -10,7 +10,8 @@ lines.linewidth        : 1.5
 lines.markersize       : 6
 #markers.fillstyle     : none
 #axes.facecolor        : white
-font.size              : 14
+# font.size              : 18 # subplots
+font.size              : 14 # other figures
 axes.titlesize         : 17
 
 # spines

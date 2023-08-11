@@ -22,22 +22,22 @@ class Machine_Maintenance_Env(gym.Env):
     reward -0.1 for reaching R1.
     """
     Standard_Rewards    = { "R1": -0.1, "R2": -0.5, "B": -1, "W": 0}
-    Standard_Probs      = {"Working": {"Next":0.8, "This":0.2, "R1":0.0, "R2":0.0},
+    Standard_Probs      = {"Working": {"Next":0.5, "This":0.5, "R1":0.0, "R2":0.0},
                        "Repair" : {"Next":0.3, "This":0.0, "R1":0.6, "R2":0.1}   }
     
-    def __init__(self, N:int = 8, termination_prob:float = 0.02, rewards:dict = Standard_Rewards, probs:dict = Standard_Probs ):
+    def __init__(self, N:int = 8, termination_prob:float = 0.02, max_steps = np.inf, rewards:dict = Standard_Rewards, probs:dict = Standard_Probs ):
         
         self.N          = N
         self.probs      = probs
         self.cum_probs  = Machine_Maintenance_Env.get_cumulative_probs(probs)
         self.rewards    = rewards
         self.done_prob  = 0 #termination_prob
-        self.max_steps  = 250 # 10_000
+        self.max_steps  = max_steps # 10_000
         self.nmbr_steps = 0
         
         self.state              = 0
         self.action_space       = spaces.Discrete(2)
-        self.observation_space  = spaces.Discrete(self.N+3)
+        self.observation_space  = spaces.Discrete(self.N+2)
         
         self.seed()
         
@@ -76,13 +76,16 @@ class Machine_Maintenance_Env(gym.Env):
         else                        : print("Warning: entered impossible state {}".format(self.state))
         
         self.nmbr_steps += 1
-        done = self.nmbr_steps >= 50 or np.random.rand() < self.done_prob
+        done = self.nmbr_steps >= self.max_steps or np.random.rand() < self.done_prob
         return self.state+2, reward, done, {}
     
     def reset(self):
         self.state = 0
         self.nmbr_steps = 0
         return self.state
+    
+    def set_state(self, s):
+        self.state = int(s-2)
     
     @staticmethod
     def get_cumulative_probs(probs):

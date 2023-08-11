@@ -310,13 +310,13 @@ def get_env(seed = None, get_base = False, variant=None):
         # Maintenance environment from Delage and Mannor (2010)
         elif env_name == "Maintenance":
                 if env_size == 0:
-                        env_size = 8
+                        env_size = 20
                 env = Machine_Maintenance_Env(N=env_size)
-                StateSize, ActionSize, s_init = env_size+3, 2, 0
+                StateSize, ActionSize, s_init = env_size+2, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.01
                 has_terminal_state = False
-                max_steps = 100
+                max_steps = 500
         
         else:
                 print("Environment {} not recognised, please try again!".format(env_name))

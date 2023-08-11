@@ -55,7 +55,6 @@ class Environment_Explicit_Interface():
             folder = os.getcwd()
         fullPath = os.path.join(folder,fileName)
         with open(fullPath, 'w') as outfile:
-            # print("\n\n",self.env_to_dict(),"\n\n")
             json.dump(self.env_to_dict(), outfile, cls=NumpyEncoder)
 
     def import_model(self, fileName, folder=None):

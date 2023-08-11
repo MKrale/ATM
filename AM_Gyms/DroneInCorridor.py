@@ -192,41 +192,4 @@ class DroneInCorridor(Env):
         return (self.vars_to_state(self.Xmax, self.Ymax, self.Vmax, self.Vmax),
                 self.Anmbr*self.Anmbr,
                 self.s_init)
-        
-env = DroneInCorridor()
-# print(env.s_init)
-# print(env.state_to_vars(11071))
-
-print(env.get_size())
-# print(env.vars_to_state(10,30,5,5))
-# print(env.state_to_vars(70299))
-# print(env.state_to_vars(70300))
-# print(env.state_to_vars(70400))
-# for x in range(10):
-#     for y in range(30):
-#         for vx_ in range(11):
-#             for vy_ in range(11):
-#                 vx=vx_-5; vy=vy_-5
-            
-#                 i = env.vars_to_state(x,y,vx,vy)
-#                 x2,y2,vx2,vy2 = env.state_to_vars(i)
-#                 i2 = env.vars_to_state(x2,y2,vx2,vy2)
-#                 if i != i2 or (x!=x2 or y!=y2 or vx!=vx2 or vy!=vy2):
-#                     print(i, i2,(x,y,vx,vy), (x2,y2,vx2,vy2))
-
-print(env.vars_to_state(14,30,5,5))
-# print(env.state_to_vars(8000))
-
-# env.set_state(0)
-# print(env.get_vars())
-# print(env.state_to_vars(0))
-# print(env.action_to_vars(0))
-# print(env.step(0))
-
-
-# print(env.state_to_vars(17))
-# print(env.action_to_vars(1))
-# for i in range(10):
-#     print(env.step(1))
-#     env.set_state(0)
 

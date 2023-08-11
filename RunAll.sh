@@ -96,14 +96,14 @@
 
 
 
-# echo -e "\n\n============= Alpha_real changing, Maintenace  =============\n\n"
-# folder_path="Data/Temp1/Maintenance/"
-# eps=1000
-# runs=1
-# i=0
-# for alpha_plan in $(seq 0.8 0.05 0.91)
+echo -e "\n\n============= Alpha_real changing, Maintenace  =============\n\n"
+folder_path="Data/Robust_Results/Maintenance/"
+eps=250
+runs=1
+i=0
+# for alpha_plan in $(seq 0.5 0.1 0.8)
 # do
-#     for alpha_real in $(seq 0.8 0.01 1.001)
+#     for alpha_real in $(seq 0.5 0.02 1.001)
 #     do
 #         python3 ./Run.py -alg ATM                   -alpha_real $alpha_real -alpha_plan $alpha_plan                     -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
 #         i=$i+1
@@ -115,19 +115,19 @@
 #     done
 # done
 
-# for alpha_plan in $(seq 0.8 0.05 0.91)
-# do
-#     for alpha_real in $(seq 0.8 0.01 1.001)
-#     do
-#         python3 ./Run.py -alg ATM_RMDP              -alpha_real $alpha_real -alpha_plan $alpha_plan                     -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-#         python3 ./Run.py -alg ATM_Robust            -alpha_real $alpha_real -alpha_plan $alpha_plan                     -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-#         python3 ./Run.py -alg ATM_Control_Robust    -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure 0    -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &      
-#         python3 ./Run.py -alg ATM_Control_Robust    -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure 1    -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-#         python3 ./Run.py -alg ATM_Control_Robust    -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure -1   -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-#         # Note: alpha_measure = alpha_plan!
-#         wait
-#     done
-# done
+for alpha_plan in $(seq 0.5 0.1 0.8)
+do
+    for alpha_real in $(seq 0.5 0.02 1.001)
+    do
+        python3 ./Run.py -alg ATM_RMDP              -alpha_real $alpha_real -alpha_plan $alpha_plan                             -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        python3 ./Run.py -alg ATM_Robust            -alpha_real $alpha_real -alpha_plan $alpha_plan                             -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        python3 ./Run.py -alg ATM_Control_Robust    -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure $alpha_plan  -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &      
+        python3 ./Run.py -alg ATM_Control_Robust    -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure 1            -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        python3 ./Run.py -alg ATM_Control_Robust    -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure -$alpha_plan -env Maintenance -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        # Note: alpha_measure = alpha_plan!
+        wait
+    done
+done
 
 
 
@@ -284,11 +284,11 @@
 # done
 # wait
 
-echo -e "\n\n============= Alpha_real & Alpha_plan same, Drone =============\n\n"
-folder_path="Data/Temp1/Drone/"
-eps=100
-runs=1
-i=0
+# echo -e "\n\n============= Alpha_real & Alpha_plan same, Drone =============\n\n"
+# folder_path="Data/Temp1/Drone/"
+# eps=100
+# runs=1
+# i=0
 # Get certain env:
 # python3 ./Run.py -alg ATM -env Drone -m_cost 0.05 -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path
 # for alpha_plan in 0.5 0.75 1.0
@@ -307,30 +307,30 @@ i=0
 #     done
 # done
 # wait
-for mcost in 0.05
-do
-    for alpha_real in $(seq 0.6 0.05 1.001)
-    do
-        echo -e "Alpha_plan = $alpha_real , Alpha_real = $alpha_real, cost = $mcost "
-        python3 ./Run.py -alg ATM                        -alpha_real $alpha_real -alpha_plan $alpha_real                                -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        # wait
-        python3 ./Run.py -alg ATM_RMDP                   -alpha_real $alpha_real -alpha_plan $alpha_real                                -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        wait
-        python3 ./Run.py -alg ATM_Robust                 -alpha_real $alpha_real -alpha_plan $alpha_real                                -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        wait
-        ### Pessimistic
-        python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure $alpha_real     -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        wait
-        ### Average
-        python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure 1               -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        wait
-        ### Optimistic
-        python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure -$alpha_real    -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        wait
-    done
-    wait
-done
-wait
+# for mcost in 0.05
+# do
+#     for alpha_real in $(seq 0.6 0.05 1.001)
+#     do
+#         echo -e "Alpha_plan = $alpha_real , Alpha_real = $alpha_real, cost = $mcost "
+#         python3 ./Run.py -alg ATM                        -alpha_real $alpha_real -alpha_plan $alpha_real                                -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+#         # wait
+#         python3 ./Run.py -alg ATM_RMDP                   -alpha_real $alpha_real -alpha_plan $alpha_real                                -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+#         wait
+#         python3 ./Run.py -alg ATM_Robust                 -alpha_real $alpha_real -alpha_plan $alpha_real                                -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+#         wait
+#         ### Pessimistic
+#         python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure $alpha_real     -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+#         wait
+#         ### Average
+#         python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure 1               -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+#         wait
+#         ### Optimistic
+#         python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure -$alpha_real    -env Drone -m_cost $mcost -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+#         wait
+#     done
+#     wait
+# done
+# wait
 
 
 echo -e "\n\n============= RUNS COMPLETED =============\n\n"
