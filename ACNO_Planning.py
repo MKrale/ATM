@@ -52,8 +52,6 @@ class ACNO_Planner():
                 print ("{} / {} runs complete (current avg reward = {}, nmbr steps = {}, nmbr measures = {})".format( 
                         i, eps, np.average(rewards[(i-log_nmbr):i]), np.average(steps[(i-log_nmbr):i]), np.average(measurements[(i-log_nmbr):i]) ) )
         
-        if self.t > 0:
-            print(self.t)
         return (np.sum(rewards), rewards, steps, measurements)
     
     def run_episode(self):

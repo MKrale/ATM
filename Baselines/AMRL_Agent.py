@@ -133,7 +133,7 @@ class AMRL_Agent:
             rewards[i], steps[i], ms[i] = self.train_epoch()
             if self.turn_greedy and i/nmbr_epochs > self.greedy_perc:
                 self.be_greedy = True
-        print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
+        # print((self.TransTable, self.QTriesTable, self.QTable))    # Debug stuff
         if get_intermediate_results:
             return (self.totalReward, rewards, steps, ms)
         return self.totalReward

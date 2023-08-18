@@ -79,6 +79,8 @@ class ModelLearner():
             self.update_model()
             
     def run_setStates(self, SA_updates = 100, logging = True):
+        if logging:
+            print("Learning MDP-model started:")
         
         for i in range(SA_updates):
             
@@ -95,7 +97,7 @@ class ModelLearner():
                         
                     self.update_counters(s, a, snext, reward)
                     self.update_model([(s,a)])
-            print(i)
+            print("{} iterations completed".format(i))
         
     def run_episode(self):
         self.env.reset()

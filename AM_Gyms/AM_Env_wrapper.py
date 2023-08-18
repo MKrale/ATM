@@ -148,7 +148,7 @@ class AM_Visualiser(): # Assuming a grid!
         choice      = np.vectorize(self.__action_to_symbol__)(choice)
         
         choice      = choice.reshape(self.gridSize, self.gridSize)
-        print(self.density)
+        # print(self.density)
         density     = self.density / np.max([np.max(self.density),1])
         density     = density.reshape(self.gridSize, self.gridSize)
 

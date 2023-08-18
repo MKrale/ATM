@@ -69,7 +69,7 @@ class ACNO_Agent_OTP:
             
             # Perform action
             (reward, obs, done) = self.model.take_real_step(action, False)
-            print(action, obs, reward)
+            # print(action, obs, reward)
             
             # Update solver & history
             stepResult = self.model.to_StepResult(action, obs, obs, reward, done)
