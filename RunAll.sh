@@ -4,7 +4,8 @@
 #       Note: this file has been written to efficiently use all resources on our setup. 
 #       Other setups may require altering the code such that less (or more) runs occur at once.
 
-
+# nmbr_cores = 5
+nmbr_cores=1
 
 ##########################################################
 #        Lucky-Unlucky Environment:
@@ -22,7 +23,8 @@ do
     do
         p_plan_set=$( python3 -c "print($p_plan/2)") 
         python3 ./Run.py -alg ATM  -env_var $p_real -env_var_plan $p_plan_set -env_var_measure $p_plan_set -alpha_real 1 -alpha_plan 0.5 -alpha_measure 0.5 -env uMV -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        if (($i==6))
+        i=$((i+1))
+        if (("$i"=="$nmbr_cores"));
         then
             i=0
             wait
@@ -64,7 +66,8 @@ do
     do
         p_plan_set=$( python3 -c "print($p_plan/2)") 
         python3 ./Run.py -alg ATM  -env_var $p_real -env_var_plan $p_plan_set -env_var_measure $p_plan_set -alpha_real 1 -alpha_plan 0.5 -alpha_measure 0.5 -env uMV -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        if (($i==6))
+        i=$((i+1))
+        if (("$i"=="$nmbr_cores"));
         then
             i=0
             wait
@@ -103,7 +106,8 @@ alpha_real=0.0001
 for cost in $(seq 0.3 0.01 0.8)
 do
     python3 ./Run.py -alg ATM                   -m_cost $cost -env_var $rsmall -alpha_real $alpha_real -alpha_plan $alpha_real -env uMV2 -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-    if (($i==6))
+    i=$((i+1))
+    if (("$i"=="$nmbr_cores"));
     then
         i=0
         wait
@@ -144,8 +148,8 @@ do
     do
         echo -e "Alpha_plan = $alpha_plan , Alpha_real = $alpha_real "
         python3 ./Run.py -alg ATM                   -alpha_real $alpha_real -alpha_plan $alpha_plan                     -env Drone -m_cost 0.05 -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        i=$i+1
-        if (($i==5))
+        i=$((i+1))
+        if (("$i"=="$nmbr_cores"));
         then
             i=0
             wait
@@ -193,8 +197,8 @@ do
     do
         echo -e "Alpha_plan = $alpha_plan , Alpha_real = $alpha_real "
         python3 ./Run.py -alg ATM                   -alpha_real $alpha_real -alpha_plan $alpha_plan                     -env Drone -m_cost 0.05 -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
-        i=$i+1
-        if (($i==5))
+        i=$((i+1))
+        if (("$i"=="$nmbr_cores"));
         then
             i=0
             wait
