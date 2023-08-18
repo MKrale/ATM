@@ -154,7 +154,7 @@ env_fullname_run:str
 env_postname_run = "_r" + float_to_str(alpha_real)
 if beta != 0:
         env_postname_run += "_b" + float_to_str(beta)
-if env_variant_plan != env_variant or env_name == "uMV":
+if env_variant_plan != env_variant:
         env_postname_run += "_pvar" + float_to_str(float(env_variant_plan))
 env_postname_run += "_p" + float_to_str(alpha_plan)
 if env_variant_plan != env_variant_measure:
@@ -201,7 +201,7 @@ def get_env(seed = None, get_base = False, variant=None):
                         MeasureCost = 0.01
 
         # Our two toy environments
-        if env_name == "uMV":
+        elif env_name == "uMV":
                 if variant == 'None':           p = 0.5
                 else:                           p = float(variant)
                 env = uMV_Env(p=p)
@@ -333,7 +333,7 @@ def get_env(seed = None, get_base = False, variant=None):
                         env_explicit.randomize(beta)
                 # ... then re-make into an openAI environment.
                 P, _Q, R = env_explicit.get_robust_tables() 
-                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, ENV.getname(), has_terminal_state, max_steps) 
+                ENV = GenericAMGym(P, R, StateSize, ActionSize, MeasureCost,s_init, ENV.getname(), has_terminal_state, max_steps)
         
         return ENV
 

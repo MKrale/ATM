@@ -14,9 +14,9 @@ This repository contains the following files:
 Code:
 
   - **ACNO_Planning.py**      : Code containing all planning algorithms used in the paper;
-  - **Plot_Data.ipynb**       : Code for plotting data (with a **matplotlibrc** file to set formatting);
   - **Run.py**                : Code for automatically running agents on environments & recording their data;
   - **RunAll.sh**             : Bash file for automatically running all experiments in the paper;
+  - **Plot_Data.ipynb**       : Code for plotting data (with a **matplotlibrc** file to set formatting);
   - **Requirements.text**     : File with required python dependencies;
 
 Folders:
@@ -47,10 +47,10 @@ All algorithms can be run using the Run.py file from command line. Running 'pyth
 As an example, starting a run looks something like:
 
 ```bash
-python Run.py -alg ATM_Control_Robust -env Drone -alpha_plan 0.5 -alpha_real 1 -alpha_measure 0.8 -nmbr_eps 100
+python Run.py -alg ATM_Control_Robust -env Drone -alpha_plan 0.5 -alpha_real 0.8 -alpha_measure 0.8 -nmbr_eps 100
 ```
 
-This command runs the CR-ATM algorithm on the Drone environment with $\alpha = 1, \alpha_p = 0.5$, and $\mathcal{M}_\text{CR}$ with dynamics parametrized an RMDP with $\alpha=0.8$.
+This command runs the MLATM algorithm on the Drone environment with $\alpha = 1, \alpha_p = 0.5$, and $\mathcal{M}_\text{ML}$ with dynamics parametrized an RMDP with $\alpha=0.8$.
 Thus, CR-ATM-avg uses alpha_measure 1, CR-ATM-pes uses alpha_measure = alpha_plan, and CR-ATM-opt uses alhpa_measure = - alpha_plan (hard-coded).
 To run all experiments from the paper at once, run the following:
 
@@ -58,4 +58,4 @@ To run all experiments from the paper at once, run the following:
 bash ./Runall.sh
 ```
 
-Note that due to size constraints, this repository does not contain pre-computed drone environments, which means running this file might take a long time.
+Note that this repository does not contain all pre-computated files for the drone environments, which means run times might be relatively long.

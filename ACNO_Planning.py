@@ -1,11 +1,10 @@
 """File containting all (R)ACNO-MDP planner used in the paper. RMDP-values are pre-computed in seperate files. """
 import numpy as np
 import math as m
-import time
 import pytest
 import cvxpy as cp
 import AM_Gyms.DroneInCorridor as drone
-from functools import lru_cache
+# from functools import lru_cache
 
 from AM_Gyms.AM_Tables import  RAM_Environment_Explicit
 from AM_Gyms.AM_Env_wrapper import AM_ENV
@@ -142,7 +141,7 @@ class ACNO_Planner_Robust(ACNO_Planner):
         b_hashable = frozenset(b.items())
         return self.compute_next_belief_(b_hashable, a)
     
-    @lru_cache(maxsize=cache_size)
+    # @lru_cache(maxsize=cache_size)
     def compute_next_belief_(self, b_hashable, a):
         b = {s:p for (s, p) in b_hashable}
         return custom_worst_belief(b, a, self.P, self.Pmin, self.Pmax, self.Q)
