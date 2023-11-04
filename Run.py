@@ -3,7 +3,6 @@ File for running & gathering data on Active-Measuring algorithms.
 For a brief description of how to use it, see the Readme-file in this repo.
 
 '''
-
 ######################################################
         ###             Imports                 ###
 ######################################################
@@ -11,6 +10,8 @@ For a brief description of how to use it, see the Readme-file in this repo.
 # File structure stuff
 import sys
 import os
+
+from AM_Gyms.Avoid import Avoid
 sys.path.append(os.path.join(sys.path[0],"Baselines"))
 sys.path.append(os.path.join(sys.path[0],"Baselines", "ACNO_generalised"))
 
@@ -47,6 +48,8 @@ from AM_Gyms.AM_Tables import AM_Environment_Explicit, RAM_Environment_Explicit,
 from AM_Gyms.uMV import uMV_Env
 from AM_Gyms.uMV2 import uMV2_Env
 from AM_Gyms.DroneInCorridor import DroneInCorridor
+from AM_Gyms.Avoid import Avoid
+from AM_Gyms.CoalOrGold import CoalOrGold
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -310,13 +313,34 @@ def get_env(seed = None, get_base = False, variant=None):
         # Maintenance environment from Delage and Mannor (2010)
         elif env_name == "Maintenance":
                 if env_size == 0:
-                        env_size = 20
+                        env_size = 10
                 env = Machine_Maintenance_Env(N=env_size)
                 StateSize, ActionSize, s_init = env_size+2, 2, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.01
                 has_terminal_state = False
-                max_steps = 500
+                max_steps = 50
+        
+        elif env_name == "Avoid":
+                if variant == "None":   p = 0.5
+                else:                   p = float(variant)
+                max_steps = 50
+                env = Avoid(p, max_steps=max_steps)
+                StateSize, ActionSize, s_init = env.get_size(), 5, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.01
+                has_terminal_state = True
+        
+        elif env_name == "CoalOrGold":
+                if variant == "None":   p = 0.1
+                else:                   p = float(variant)
+                max_steps = 50
+                env = CoalOrGold(p, max_steps=max_steps)
+                StateSize, ActionSize, s_init = env.get_size(), 5, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.01
+                has_terminal_state = True
+                
         
         else:
                 print("Environment {} not recognised, please try again!".format(env_name))
@@ -363,7 +387,7 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                         base_env.learn_model_AMEnv(ENV, df=0.95, N=100)
                         base_env.export_model(ENV.getname(), env_folder_name)
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
-                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95, N_robust = 10)
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95, N_robust = 100)
                 env_explicit.export_model( env_tag, env_folder_name )
         env_explicit.MeasureCost = MeasureCost  # This is slightly hacky, cost probably shouldn't be part of the explict env or always be set manually...
         return env_explicit
