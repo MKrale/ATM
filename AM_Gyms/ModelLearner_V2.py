@@ -10,7 +10,9 @@ class ModelLearner():
     def __init__(self, env:AM_ENV, df = 0.95, record_done = None):
          
          self.env = env
+         
          self.StateSize, self.ActionSize, self.cost, self.s_init = env.get_vars()
+         print(self.StateSize)
          self.doneState = self.StateSize
          self.StateSize += 1
          self.df = df
@@ -26,6 +28,8 @@ class ModelLearner():
         
         self.counter = np.zeros((self.StateSize, self.ActionSize))
         self.P = build_dictionary(self.StateSize, self.ActionSize)
+        for a in range(self.ActionSize):
+            self.P[self.doneState][a] = {self.doneState:1}
         self.P_counter = build_dictionary(self.StateSize, self.ActionSize)
         
         self.R_counter = build_dictionary(self.StateSize, self.ActionSize)
@@ -44,7 +48,7 @@ class ModelLearner():
         self.Q_learning[self.doneState, :] = 0
         self.Q_learning_max = np.max(self.Q_learning, axis=1)
         self.df_learning = 0.90
-    
+
     def get_model(self):
         """Returns P, R, Q"""
         return self.P, self.R, self.Q
@@ -84,13 +88,14 @@ class ModelLearner():
         
         for i in range(SA_updates):
             
-            sorted_states = np.argsort(self.Q_max)
+            sorted_states = np.argsort(self.Q_max[:-1])
             for s in sorted_states:
                 for a in range(self.ActionSize):
                     # Set env to state, take action & update model.
                     self.env.set_state(s)
                     reward, done = self.env.step(a)
                     if done:
+                        print(s, reward)
                         snext = self.doneState
                     else:
                         (snext,_cost) = self.env.measure()

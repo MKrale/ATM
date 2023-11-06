@@ -75,6 +75,7 @@ class ACNO_Planner():
                 if len(currentBelief) == 1:
                     currentAction = np.random.choice(self.ActionSize)
                 currentMeasuring = True
+                print("hey!")
             else:
                 nextAction = self.determine_action      (nextBelief)
                 currentMeasuring  = self.determine_measurement (currentBelief, currentAction, nextBelief, nextAction)
@@ -87,6 +88,10 @@ class ACNO_Planner():
                 cost = 0
             total_reward += reward - cost
             total_steps += 1
+            # if True: #currentMeasuring:
+                # print(measuring_value(currentBelief, currentAction, self.Q), self.cost, measuring_value(currentBelief, currentAction, self.Q) > self.cost)
+                # print(currentBelief, self.measure(), nextBelief, currentAction, currentMeasuring)
+            print(self.measure(), reward)
             currentBelief, currentAction = nextBelief, nextAction
         
         return total_reward, total_steps, total_measures
@@ -103,7 +108,8 @@ class ACNO_Planner():
             b_next = self.compute_next_belief(b,a)
         if a_next is None:
             a_next = self.determine_action(b_next)
-        return measuring_value(b_next, a_next, self.Q) > self.cost
+        MV = measuring_value(b_next, a_next, self.Q)
+        return MV > self.cost
     
     def execute_action(self, action, belief, measuring):
         reward, done = self.env.step(action)
@@ -130,7 +136,8 @@ class ACNO_Planner_Robust(ACNO_Planner):
         b_next_measuring = next_belief(b,a, self.P)
         if a_next is None:
             a_next = self.determine_action(b_next)
-        return measuring_value(b_next, a_next, self.Q, bm=b_next_measuring) > self.cost
+        MV = measuring_value(b_next, a_next, self.Q, bm=b_next_measuring)
+        return MV > self.cost and not np.isclose(MV, 0, rtol=rtol, atol=atol)
 
     def determine_action(self, b):
         return optimal_action(b, self.Q, None)
@@ -206,8 +213,10 @@ class ACNO_Planner_Control_Robust(ACNO_Planner_Robust):
             print("ERROR: determine_measurement not fully implemented for non-given next beliefs/actions")
         bnext_if_measuring = next_belief(b,a,self.P)
         #NOTE: since this is already 'less conservative' then the robust belief update, even control-robust ATM with P_Rmdp has an effect!
-        return (measuring_value(bm_next, a_next, self.Qmeasure, Q_decision=self.Q ) > self.cost     # CR part
-                or  measuring_value(b_next, a_next, self.Q, bm=bnext_if_measuring) > self.cost )    # Regular part
+        MV_robust = measuring_value(bm_next, a_next, self.Qmeasure, Q_decision=self.Q )
+        MV_extra  = measuring_value(b_next, a_next, self.Q, bm=bnext_if_measuring)
+        
+        return MV_robust > self.cost or MV_extra > self.cost
 
 
 # Generalized functions:

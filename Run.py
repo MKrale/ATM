@@ -50,6 +50,8 @@ from AM_Gyms.uMV2 import uMV2_Env
 from AM_Gyms.DroneInCorridor import DroneInCorridor
 from AM_Gyms.Avoid import Avoid
 from AM_Gyms.CoalOrGold import CoalOrGold
+from AM_Gyms.Maze.maze_env import MazeEnv
+from AM_Gyms.SnakeMaze import SnakeMaze
 
 # Environment wrappers
 from AM_Gyms.AM_Env_wrapper import AM_ENV as wrapper
@@ -340,6 +342,29 @@ def get_env(seed = None, get_base = False, variant=None):
                 if MeasureCost == -1:
                         MeasureCost = 0.01
                 has_terminal_state = True
+
+        elif env_name == "Maze":
+                if env_size == 0:       size = 25
+                else:                   size = int(env_size)
+                if variant == 'None':   p = 0.5
+                else:                   p = float(variant)
+                env = MazeEnv(maze_size=(size,size))
+                StateSize, ActionSize, s_init = size**2 -1, 4, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.005
+                has_terminal_state = True
+        
+        elif env_name == "SnakeMaze":
+                if env_size == 0:       size = 10
+                else:                   size = int(env_size)
+                if variant == 'None':   p = 0.5
+                else:                   p = float(variant)
+                env = SnakeMaze(breakChance=p , size=size)
+                StateSize, ActionSize, s_init = env.get_size(), 4, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.01
+                has_terminal_state = True
+                
                 
         
         else:
@@ -384,10 +409,10 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
                 except FileNotFoundError:
                         base_env = AM_Environment_Explicit()
-                        base_env.learn_model_AMEnv(ENV, df=0.95, N=100)
+                        base_env.learn_model_AMEnv(ENV, df=0.99, N=200)
                         base_env.export_model(ENV.getname(), env_folder_name)
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
-                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.95, N_robust = 100)
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.99, N_robust = 200)
                 env_explicit.export_model( env_tag, env_folder_name )
         env_explicit.MeasureCost = MeasureCost  # This is slightly hacky, cost probably shouldn't be part of the explict env or always be set manually...
         return env_explicit
