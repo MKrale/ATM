@@ -3,9 +3,118 @@
 #       This file runs all experiments as used in the paper, and stores them in the data-folder. For creating plots, see the Plot_Data.ipynb
 #       Note: this file has been written to efficiently use all resources on our setup. 
 #       Other setups may require altering the code such that less (or more) runs occur at once.
+#       Furthermore, in running all code in this file may take a long time: in practice we ran our experiments in stages.
 
-# nmbr_cores = 5
-nmbr_cores=1
+nmbr_cores = 5
+# nmbr_cores=12
+
+##########################################################
+#        Snake Maze Environment:
+##########################################################
+
+echo -e "\n\n============= Snake Maze, changing alpha  =============\n\n"
+
+folder_path="Data/Robust_Results/SnakeMaze/"
+eps=50
+runs=1
+i=0
+# Get certain env:
+python3 ./Run.py -alg ATM -env SnakeMaze -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path
+
+for alpha_plan in 0.6
+do
+    alpha_plan=1
+    for alpha_real in $(seq 0.55 0.01 1.01)
+    do
+        echo -e "Alpha_plan = $alpha_plan , Alpha_real = $alpha_real "
+        python3 ./Run.py -alg ATM                   -alpha_real $alpha_real -alpha_plan $alpha_plan                     -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        i=$((i+1))
+        if (("$i"=="$nmbr_cores"));
+        then
+            i=0
+            wait
+        fi 
+    done
+done
+wait
+i=0
+for alpha_plan in 0.6
+do
+    for alpha_real in $(seq 0.55 0.01 1.01)
+    do
+        echo -e "Alpha_plan = $alpha_plan , Alpha_real = $alpha_real, cost = $mcost "
+        python3 ./Run.py -alg ATM                        -alpha_real $alpha_real -alpha_plan $alpha_plan                                -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        python3 ./Run.py -alg ATM_RMDP                   -alpha_real $alpha_real -alpha_plan $alpha_plan                                -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        python3 ./Run.py -alg ATM_Robust                 -alpha_real $alpha_real -alpha_plan $alpha_plan                                -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        ### Pessimistic
+        python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure $alpha_plan     -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        ### Average
+        python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure 1               -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        ### Optimistic
+        python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_plan -alpha_measure -$alpha_plan    -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        i=$((i+6))
+        inext=$((i+6))
+        if (("$inext">"$nmbr_cores"));
+        then
+            i=0
+            wait
+        fi 
+    done
+    wait
+done
+wait
+
+
+echo -e "\n\n============= Snake Maze, constant alpha  =============\n\n"
+
+folder_path="Data/Robust_Results/SnakeMaze/"
+eps=50
+runs=1
+i=0
+# Get certain env:
+python3 ./Run.py -alg ATM -env SnakeMaze -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path
+
+for alpha_plan in 0.6
+do
+    alpha_plan=1
+    for alpha_real in $(seq 0.55 0.05 1.01)
+    do
+        echo -e "Alpha_plan = $alpha_plan , Alpha_real = $alpha_real "
+        python3 ./Run.py -alg ATM                   -alpha_real $alpha_real -alpha_plan $alpha_plan                     -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+        i=$((i+1))
+        if (("$i"=="$nmbr_cores"));
+        then
+            i=0
+            wait
+        fi 
+    done
+done
+wait
+i=0
+for alpha_real in $(seq 0.55 0.01 0.65)
+do
+    echo -e "Alpha_real = $alpha_real, cost = $mcost "
+    python3 ./Run.py -alg ATM                        -alpha_real $alpha_real -alpha_plan $alpha_real                                -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+    python3 ./Run.py -alg ATM_RMDP                   -alpha_real $alpha_real -alpha_plan $alpha_real                                -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+    python3 ./Run.py -alg ATM_Robust                 -alpha_real $alpha_real -alpha_plan $alpha_real                                -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+    ### Pessimistic
+    python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure $alpha_real     -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+    ### Average
+    python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure 1               -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+    ### Optimistic
+    python3 ./Run.py -alg ATM_Control_Robust         -alpha_real $alpha_real -alpha_plan $alpha_real -alpha_measure -$alpha_real    -env SnakeMaze  -nmbr_eps $eps -nmbr_runs $runs -rep $folder_path &
+    i=$((i+3))
+    inext=$((i+3))
+    if (("$inext">"$nmbr_cores"));
+    then
+        i=0
+        wait
+    fi 
+done
+wait
+
+
+
 
 ##########################################################
 #        Lucky-Unlucky Environment:
@@ -49,9 +158,9 @@ do
 done
 
 
-##########################################################
-#        A-B Environment:
-##########################################################
+# ##########################################################
+# #        A-B Environment:
+# ##########################################################
 
 
 echo -e "\n\n============= Alpha_plan changing, uMV  =============\n\n"
@@ -90,9 +199,9 @@ do
 done
 wait
 
-##########################################################
-#        Lucky-Unlucky Environment:
-##########################################################
+# ##########################################################
+# #        Lucky-Unlucky Environment:
+# ##########################################################
 
 
 echo -e "\n\n============= C changing, uMV2  =============\n\n"
@@ -129,9 +238,9 @@ do
 done
 wait
 
-##########################################################
-#        Drone Environment:
-##########################################################
+# ##########################################################
+# #        Drone Environment:
+# ##########################################################
 
 
 echo -e "\n\n============= Alpha_real & Alpha_plan different, Drone =============\n\n"
@@ -230,9 +339,6 @@ do
     wait
 done
 wait
-
-
-
 
 
 ##########################################################

@@ -195,8 +195,8 @@ def get_env(seed = None, get_base = False, variant=None):
         
         np.random.seed(seed)
         
+
         # Basically, just a big messy pile of if/else statements to select the correct model...
-        
         
         # Our custom drone environment
         if env_name == "Drone":
@@ -222,6 +222,18 @@ def get_env(seed = None, get_base = False, variant=None):
                 if MeasureCost == -1:
                         MeasureCost = 0.2
         
+        elif env_name == "SnakeMaze":
+                if env_size == 0:       size = 10
+                else:                   size = int(env_size)
+                if variant == 'None':   p = 0.5
+                else:                   p = float(variant)
+                env = SnakeMaze(size=size)
+                StateSize, ActionSize, s_init = env.get_size(), 5, 0
+                if MeasureCost == -1:
+                        MeasureCost = 0.001
+                has_terminal_state = True
+        
+
         # From here on, a lot of testing environments:
         
         # Measure Regret environment (Krale et al, 2023).
@@ -255,11 +267,11 @@ def get_env(seed = None, get_base = False, variant=None):
                         print("Using random map")
                         map_name = None
                         desc = generate_random_map(size=env_size)
-                                
-                if map_name is None and remake_env_opt:
-                        remake_env = True
-                        
                 
+
+
+                if map_name is None and remake_env_opt:
+                        remake_env = True        
                 if variant == "det":
                         env = FrozenLakeEnv(desc=desc, map_name=map_name, is_slippery=False)
                 elif variant == "slippery":
@@ -323,6 +335,7 @@ def get_env(seed = None, get_base = False, variant=None):
                 has_terminal_state = False
                 max_steps = 50
         
+        # Custom AM version of Storm's 'Avoid' environment
         elif env_name == "Avoid":
                 if variant == "None":   p = 0.5
                 else:                   p = float(variant)
@@ -333,6 +346,7 @@ def get_env(seed = None, get_base = False, variant=None):
                         MeasureCost = 0.01
                 has_terminal_state = True
         
+        # Custom environment
         elif env_name == "CoalOrGold":
                 if variant == "None":   p = 0.1
                 else:                   p = float(variant)
@@ -343,6 +357,7 @@ def get_env(seed = None, get_base = False, variant=None):
                         MeasureCost = 0.01
                 has_terminal_state = True
 
+        # OpenAI maze environment
         elif env_name == "Maze":
                 if env_size == 0:       size = 25
                 else:                   size = int(env_size)
@@ -352,19 +367,7 @@ def get_env(seed = None, get_base = False, variant=None):
                 StateSize, ActionSize, s_init = size**2 -1, 4, 0
                 if MeasureCost == -1:
                         MeasureCost = 0.005
-                has_terminal_state = True
-        
-        elif env_name == "SnakeMaze":
-                if env_size == 0:       size = 10
-                else:                   size = int(env_size)
-                if variant == 'None':   p = 0.5
-                else:                   p = float(variant)
-                env = SnakeMaze(breakChance=p , size=size)
-                StateSize, ActionSize, s_init = env.get_size(), 4, 0
-                if MeasureCost == -1:
-                        MeasureCost = 0.01
-                has_terminal_state = True
-                
+                has_terminal_state = True                
                 
         
         else:
@@ -412,7 +415,7 @@ def get_explicit_env(ENV, env_folder_name, env_postname, alpha):
                         base_env.learn_model_AMEnv(ENV, df=0.99, N=200)
                         base_env.export_model(ENV.getname(), env_folder_name)
                         env_explicit.import_MDP_env(ENV.getname(), folder = env_folder_name)
-                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.99, N_robust = 200)
+                env_explicit.learn_robust_model_Env_alpha(ENV, alpha, df=0.99, N_robust = 50)
                 env_explicit.export_model( env_tag, env_folder_name )
         env_explicit.MeasureCost = MeasureCost  # This is slightly hacky, cost probably shouldn't be part of the explict env or always be set manually...
         return env_explicit
@@ -428,19 +431,19 @@ def get_agent(seed=None):
 
         # Now, just a list of if-else statements to select the correct agent:
         
-        # ATM-avg: the generic planner as used in Krale et al (2023)
+        # ATMavg: the generic planner as used in Krale et al (2023)
         if algo_name == "ATM":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner(ENV, env_plan)
-        # ATM-pes: the same planner, but using the RMDP model
+        # ATMpes: the same planner, but using the RMDP model
         elif algo_name == "ATM_RMDP":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner(ENV, env_plan, use_robust=True)
-        # R-ATM
+        # RATM
         elif algo_name == "ATM_Robust":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 agent = ACNO_Planner_Robust(ENV, env_plan)
-        # CR-ATM
+        # MLATM (refered to as 'control-robust' in code)
         elif algo_name == "ATM_Control_Robust":
                 env_plan = get_explicit_env(ENV_base_plan, env_folder_name, env_postname_plan, alpha_plan)
                 env_measure = get_explicit_env(ENV_base_measure, env_folder_name, env_postname_measure, alpha_measure)
@@ -485,13 +488,13 @@ def get_agent(seed=None):
 
 agent = get_agent(0)
 
-# Automatically creates filename is not specified by user
+# Automatically creates filename if not specified by user
 if file_name == None:
         file_name = 'AMData_{}_{}_mc{}.json'.format(algo_name, env_fullname_run, str(float_to_str(args.m_cost)))
 
 # Set measurecost if not set by environment.
 if args.m_cost == -1:
-        args.m_cost == MeasureCost
+        args.m_cost = MeasureCost
 
 def PR_to_data(pr_time):
         "Prints timecode as used in datafiles"

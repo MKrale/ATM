@@ -5,16 +5,7 @@ import numpy as np
 
 class uMV_Env(gym.Env):
     """
-    Measure Loss environment
-    This simple environment describes an MDP with 3 states: one initial state s0,
-    one 'positive' state s+ and one 'negative' state s-.
-    From every state, taking action 1 (backward) returns to the initial state.
-    From s0, taking action 0 has a chance p to change the state to s+,
-    and a chance (1-p) to change to s-
-    From s+, taking action 0 ends the run and gives reward r.
-    From s-, taking action 0 also end the run but gives no reward.
-    This environment is described in the report Merlijn Krale (link here!), 
-    and is used to test Active-Measuring algorithms.
+    The Lucky-Unlucky Environment: see Krale et al (2024) for a full explanation.
     """
     def __init__(self, p=0.05, rbig = 1, rsmall = 0.0):
 

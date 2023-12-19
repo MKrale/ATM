@@ -1,7 +1,8 @@
 # figure.figsize         : 3.32, 2.49
 # figure.figsize         : 4, 2.5       # behaviour subplot size
-# figure.figsize         : 7, 3     # other figures size
-figure.figsize         : 7, 3.5     # other figues XL
+figure.figsize         : 7, 2.75     # other figures size
+# figure.figsize          : 7, 2.5
+# figure.figsize         : 7, 3.5     # other figues XL
 # figure.figsize          : 10,5
 figure.dpi             : 200
 figure.facecolor       : white

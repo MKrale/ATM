@@ -136,8 +136,8 @@ class ModelLearner_Robust():
                 for a in range(self.ActionSize):
                     self.update_Qr(s, a)
                 
-            if ((i+1)%(min([round(updates/10), 1])) == 0 and logging):
-                print("Episode {} completed!".format(i+1))
+            # if ((i+1)%(min([round(updates/10), 1])) == 0 and logging):
+            #     print("Episode {} completed!".format(i+1))
 
         if logging:
             print("Learning completed after {} updates per state!\n\n".format(updates))

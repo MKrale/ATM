@@ -15,6 +15,10 @@ class Patroller():
 
 
 class Avoid(gym.Env):
+    """A version of Storms Avoid environment, altered to work in an active measuring setting.
+    An agent needs to cross a gridworld map while avoiding 2 moving adversaries.
+    The movement patterns of the adversaries are known but stochastic.
+    """
 
     def __init__(self, p_slip=0.5, max_steps = 50, Xmax=5, Ymax=5):
         

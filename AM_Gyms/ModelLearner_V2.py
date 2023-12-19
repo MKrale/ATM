@@ -5,6 +5,7 @@ from AM_Gyms.AM_Env_wrapper import AM_ENV
 import numpy as np
 
 class ModelLearner():
+    """Class to learn an OpenAI model and export it as a json file (with an explicit P, R and Q table)."""
     
     
     def __init__(self, env:AM_ENV, df = 0.95, record_done = None):
@@ -12,7 +13,6 @@ class ModelLearner():
          self.env = env
          
          self.StateSize, self.ActionSize, self.cost, self.s_init = env.get_vars()
-         print(self.StateSize)
          self.doneState = self.StateSize
          self.StateSize += 1
          self.df = df
@@ -71,9 +71,9 @@ class ModelLearner():
                 s_avg += s/batch_size
             counter_nonzero = np.nonzero(self.counter)
             done = np.min(self.counter[counter_nonzero]) > min_visits or nmbr_batches*batch_size > max_eps
-            print(np.argmin(self.counter[counter_nonzero]), np.size(self.counter[counter_nonzero]))
-            if logging:
-                print("{} episodes completed (with {} avg steps)".format(batch_size*nmbr_batches, s_avg))
+            # print(np.argmin(self.counter[counter_nonzero]), np.size(self.counter[counter_nonzero]))
+            # if logging:
+                # print("{} episodes completed (with {} avg steps)".format(batch_size*nmbr_batches, s_avg))
         if self.record_done:
             self.insert_done_transitions()
         print("Learning completed in {} episodes!\n\n".format(i))
@@ -95,14 +95,13 @@ class ModelLearner():
                     self.env.set_state(s)
                     reward, done = self.env.step(a)
                     if done:
-                        print(s, reward)
                         snext = self.doneState
                     else:
                         (snext,_cost) = self.env.measure()
-                        
+                    
                     self.update_counters(s, a, snext, reward)
                     self.update_model([(s,a)])
-            print("{} iterations completed".format(i))
+            # print("{} iterations completed".format(i))
         
     def run_episode(self):
         self.env.reset()

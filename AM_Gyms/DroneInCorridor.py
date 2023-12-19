@@ -4,7 +4,7 @@ import math as m
 
 class DroneInCorridor(Env):
     """Custom environment describing a drone flying through a corridor, with disturbance
-    in the system dynamics representing wind."""
+    in the system dynamics representing wind. See Krale et al (2024) for details."""
     
     def __init__(self,):
         

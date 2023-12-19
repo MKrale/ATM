@@ -11,6 +11,11 @@ INTERACT = 4
 
 
 class CoalOrGold(gym.Env):
+    """A custom Active Measure environment. 
+    An agent needs to collect coal from a number of spots. H
+    owever, when collecting it has a small chance to find gold instead: if he does, he can hand it in immidiatly to get a large reward.
+    The agent can inspect it's current inventory by measuring.
+    """
 
     def __init__(self, goldchance=0.1, max_steps = 50, Xmax=4, Ymax=4):
         

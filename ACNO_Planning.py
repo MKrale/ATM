@@ -75,7 +75,6 @@ class ACNO_Planner():
                 if len(currentBelief) == 1:
                     currentAction = np.random.choice(self.ActionSize)
                 currentMeasuring = True
-                print("hey!")
             else:
                 nextAction = self.determine_action      (nextBelief)
                 currentMeasuring  = self.determine_measurement (currentBelief, currentAction, nextBelief, nextAction)
@@ -88,10 +87,6 @@ class ACNO_Planner():
                 cost = 0
             total_reward += reward - cost
             total_steps += 1
-            # if True: #currentMeasuring:
-                # print(measuring_value(currentBelief, currentAction, self.Q), self.cost, measuring_value(currentBelief, currentAction, self.Q) > self.cost)
-                # print(currentBelief, self.measure(), nextBelief, currentAction, currentMeasuring)
-            print(self.measure(), reward)
             currentBelief, currentAction = nextBelief, nextAction
         
         return total_reward, total_steps, total_measures
