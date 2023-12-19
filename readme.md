@@ -2,9 +2,9 @@
 
 Repository containing code, as well as gathered data, as used for the paper
 
-> *Anonymous*  
+> Merlijn Krale, Thiago D. Simao, Jana Tumova, Nils Jansen  
 > Robust Active Measuring under Model Uncertainty  
-> Submitted to AAAI 2024
+> In AAAI, 2024.
 
 
 ## Contents
@@ -14,6 +14,7 @@ This repository contains the following files:
 Code:
 
   - **ACNO_Planning.py**      : Code containing all planning algorithms used in the paper;
+    - Note: Measurement lenient algorithsm are refered to as 'Control-Robust'.
   - **Run.py**                : Code for automatically running agents on environments & recording their data;
   - **RunAll.sh**             : Bash file for automatically running all experiments in the paper;
   - **Plot_Data.ipynb**       : Code for plotting data (with a **matplotlibrc** file to set formatting);
